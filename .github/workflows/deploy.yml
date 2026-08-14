@@ -34,7 +34,16 @@ jobs:
 
       - name: Build
         # GitHub Pages serves from /yomikaze/ — set the Vite base path accordingly.
-        run: VITE_BASE_PATH=/yomikaze/ npm run build
+        #
+        # Optional proxy env vars (set as repo Actions secrets) for networks
+        # that block MangaDex directly:
+        #   VITE_MANGADEX_ENDPOINT      https://<worker>.workers.dev/md
+        #   VITE_MANGADEX_COVER_ENDPOINT https://<worker>.workers.dev/covers
+        run: |
+          VITE_BASE_PATH=/yomikaze/ \
+          VITE_MANGADEX_ENDPOINT="${{ secrets.VITE_MANGADEX_ENDPOINT }}" \
+          VITE_MANGADEX_COVER_ENDPOINT="${{ secrets.VITE_MANGADEX_COVER_ENDPOINT }}" \
+          npm run build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

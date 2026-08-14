@@ -87,7 +87,11 @@ interface MDTagResponse {
 /* Mapping                                                             */
 /* ------------------------------------------------------------------ */
 
-const COVER_BASE = 'https://uploads.mangadex.org/covers'
+// Cover image base. On networks that block uploads.mangadex.org this can be
+// pointed at a Cloudflare Worker proxy (see cloudflare-worker/worker.js), e.g.
+// VITE_MANGADEX_COVER_ENDPOINT=https://<worker>.workers.dev/covers
+const COVER_BASE =
+  (import.meta.env.VITE_MANGADEX_COVER_ENDPOINT as string | undefined) ?? 'https://uploads.mangadex.org/covers'
 
 function pickLocalized(map: Record<string, string> | undefined): string {
   if (!map) return ''
