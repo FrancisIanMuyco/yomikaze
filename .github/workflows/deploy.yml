@@ -35,12 +35,19 @@ jobs:
       - name: Build
         # GitHub Pages serves from /yomikaze/ — set the Vite base path accordingly.
         #
-        # Optional proxy env vars (set as repo Actions secrets) for networks
-        # that block MangaDex directly:
-        #   VITE_MANGADEX_ENDPOINT      https://<worker>.workers.dev/md
+        # Content comes from the scraped MangaFire store (public/scraped.json).
+        # MangaFire CDN images are hotlink-protected, so in production they're
+        # proxied through the Cloudflare Worker (VITE_IMAGE_PROXY_BASE) which
+        # adds the mangafire Referer server-side. The worker also proxies the
+        # MangaDex API/covers for networks that block mangadex.org directly.
+        # Set these as repo Actions secrets:
+        #   VITE_IMAGE_PROXY_BASE  https://<worker>.workers.dev
+        #   VITE_MANGADEX_ENDPOINT  https://<worker>.workers.dev/md
         #   VITE_MANGADEX_COVER_ENDPOINT https://<worker>.workers.dev/covers
         run: |
           VITE_BASE_PATH=/yomikaze/ \
+          VITE_CONTENT_PROVIDER=mangafire \
+          VITE_IMAGE_PROXY_BASE="${{ secrets.VITE_IMAGE_PROXY_BASE }}" \
           VITE_MANGADEX_ENDPOINT="${{ secrets.VITE_MANGADEX_ENDPOINT }}" \
           VITE_MANGADEX_COVER_ENDPOINT="${{ secrets.VITE_MANGADEX_COVER_ENDPOINT }}" \
           npm run build

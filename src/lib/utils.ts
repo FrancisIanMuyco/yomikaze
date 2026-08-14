@@ -17,8 +17,15 @@ export function debounce<T extends (...args: never[]) => void>(fn: T, ms: number
 }
 
 /**
- * Rewrites mangafire CDN image URLs to the local proxy path (/mfcdn/<host>/<path>)
- * so images load with the correct Referer header (see vite.config.ts).
+ * Rewrites mangafire CDN image URLs to a proxy path so images load with the
+ * correct Referer header (MangaFire hotlink protection).
+ *
+ * - Dev / preview: uses the local middleware path `/mfcdn/<host>/<path>`
+ *   (see vite.config.ts) which injects the mangafire Referer server-side.
+ * - Production (GitHub Pages / static hosts): when `VITE_IMAGE_PROXY_BASE` is
+ *   set (e.g. a Cloudflare Worker URL), URLs are rewritten to
+ *   `<proxy-base>/mfcdn/<host>/<path>` — the worker fetches with the Referer.
+ *
  * Covers live on static.mfcdn.nl and pages on mfcdn*.xyz — both are matched.
  * Non-mangafire URLs pass through unchanged.
  */
@@ -26,7 +33,8 @@ export function proxyImageUrl(url: string | undefined): string | undefined {
   if (!url) return undefined
   const m = /^https:\/\/([^/]+)\/(.+)$/.exec(url)
   if (m && /(^|\.)mfcdn\d*\./i.test(m[1])) {
-    return `/mfcdn/${m[1]}/${m[2]}`
+    const proxyBase = (import.meta.env.VITE_IMAGE_PROXY_BASE as string | undefined) ?? ''
+    return `${proxyBase}/mfcdn/${m[1]}/${m[2]}`
   }
   return url
 }
