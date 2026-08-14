@@ -65,7 +65,7 @@ export class MangaFireProvider implements ContentProvider {
 
   private async loadData() {
     try {
-      const res = await fetch(`/scraped.json?t=${Date.now()}`)
+      const res = await fetch(`${import.meta.env.BASE_URL}scraped.json?t=${Date.now()}`)
       if (!res.ok) return
       const data = await res.json()
       this.items = data.items || [data]
@@ -80,7 +80,7 @@ export class MangaFireProvider implements ContentProvider {
   /** Poll scraped.json and re-index only when the library actually changed. */
   private async refresh() {
     try {
-      const res = await fetch(`/scraped.json?t=${Date.now()}`)
+      const res = await fetch(`${import.meta.env.BASE_URL}scraped.json?t=${Date.now()}`)
       if (!res.ok) return
       const data = await res.json()
       const items: RawScrapedItem[] = data.items || [data]

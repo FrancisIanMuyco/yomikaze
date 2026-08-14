@@ -38,7 +38,7 @@ export class ScrapedProvider implements ContentProvider {
 
   private async loadData() {
     try {
-      const res = await fetch('/scraped.json')
+      const res = await fetch(`${import.meta.env.BASE_URL}scraped.json`)
       if (!res.ok) return
       const data = await res.json()
       this.items = data.items || [data]
