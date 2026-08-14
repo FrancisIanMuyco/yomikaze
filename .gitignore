@@ -1,0 +1,46 @@
+# Logs
+logs
+*.log
+*.err
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Env
+.env
+.env.*
+!.env.example
+
+# E2E artifacts
+e2e-shots
+
+# JUKU scraping engine — build + runtime state
+juku/dist
+juku/logs
+juku/cache.json
+juku/state.json
+juku/test-output.json
+
+# Local chapter-page download cache (kept out of public/ so builds stay fast;
+# served in dev/preview by the manga-cache middleware in vite.config.ts)
+manga-cache
+
+# Downloader runtime progress (not used by the app)
+public/solo_leveling_progress.json
