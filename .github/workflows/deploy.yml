@@ -27,21 +27,19 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: YOMIKAZE/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        working-directory: YOMIKAZE
         run: npm ci
 
       - name: Build
-        working-directory: YOMIKAZE
         # GitHub Pages serves from /yomikaze/ — set the Vite base path accordingly.
         run: VITE_BASE_PATH=/yomikaze/ npm run build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: YOMIKAZE/dist
+          path: dist
 
   deploy:
     environment:
