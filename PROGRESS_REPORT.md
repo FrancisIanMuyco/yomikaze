@@ -135,11 +135,14 @@ public/                scraped.json + favicon + demo assets (keep small!)
 
 ## 5 · Known issues / gotchas
 
-0. **MangaDex connectivity (2026-08-14):** niabot ang CORS/network errors sa browser test,
-   pero na-verify nga **up ang MangaDex API globally** (independent check 200 OK). Ang makina
-   mismo (curl + juku logs) kay may problema sa pagkonekta sa `api.mangadex.org` — local/ISP
-   network issue, dili sa code o sa deploy. I-test sa lain nga device/network. Kung regional
-   block gyud, i-switch ang `VITE_CONTENT_PROVIDER=scraped` (mga local data sa `public/scraped.json`).
+0. **MangaDex connectivity (2026-08-14) — FIXED ✅:** ang ISP nag-block sa `api.mangadex.org`
+   ug `uploads.mangadex.org` (SNI-based TLS filtering). Na-fix pinaagi sa **Cloudflare Worker
+   proxy** (`cloudflare-worker/worker.js`, deployed sa `yomikaze-md-proxy.yomikaze-md.workers.dev`):
+   ang browser → Cloudflare (dili blocked) → MangaDex (dili blocked) → balik sa browser. Ang
+   site build kay nag-use sa proxy via GitHub Actions secrets:
+   - `VITE_MANGADEX_ENDPOINT` = `https://yomikaze-md-proxy.yomikaze-md.workers.dev/md`
+   - `VITE_MANGADEX_COVER_ENDPOINT` = `https://yomikaze-md-proxy.yomikaze-md.workers.dev/covers`
+   Verified: 31 title cards + covers nag-load na sa live site.
 
 1. **Dev server lock:** kung magdagan ang `npm run dev`, dili ma-move/rename ang
    `manga-cache/` (locked). Stop sa server una.
@@ -180,3 +183,4 @@ public/                scraped.json + favicon + demo assets (keep small!)
 |---|---|
 | 2026-08-14 | Build hang fix (manga-cache move + middleware), design polish (animations, hero, cards, reader auto-hide + page-turn), ReaderPage ASI fix, PROGRESS_REPORT.md |
 | 2026-08-14 | **Deployed to GitHub Pages** (live: francisianmuyco.github.io/yomikaze) — repo created, Actions workflow, base path + 404 fallback, verified live |
+| 2026-08-14 | **Cloudflare Worker MangaDex proxy** — na-fix ang ISP block (SNI filtering); API + covers mo-agi sa workers.dev; live content verified (31 titles loading) |
