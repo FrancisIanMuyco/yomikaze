@@ -4,7 +4,7 @@
 > session, ug unsay sunod buhaton — para dali ra kaayo mag-update ug magpadayon.
 > Update this file after every working session.
 
-Last updated: **2026-08-14** · Status: ✅ builds green, design polished, reader improved
+Last updated: **2026-08-14** · Status: ✅ **LIVE** on GitHub Pages + builds green + design polished
 
 ---
 
@@ -12,6 +12,8 @@ Last updated: **2026-08-14** · Status: ✅ builds green, design polished, reade
 
 | Area | Status |
 |---|---|
+| 🌐 **Live site** | ✅ **https://francisianmuyco.github.io/yomikaze/** (GitHub Pages, auto-deploy sa kada push sa `main`) |
+| **Git repo** | ✅ `github.com/FrancisIanMuyco/yomikaze` (public) |
 | `npm run build` | ✅ **~2–15s** (gikan sa >5min nga hang — na-fix) |
 | `npm run typecheck` | ✅ green (app + juku) |
 | Content provider | `mangadex` default (real metadata + real pages) |
@@ -23,6 +25,17 @@ Last updated: **2026-08-14** · Status: ✅ builds green, design polished, reade
 ---
 
 ## 2 · Unsa ang nabag-o sa last session (2026-08-14)
+
+### 🌐 Deployment (GitHub Pages) — NEW
+- **Live URL:** https://francisianmuyco.github.io/yomikaze/
+- Repo: `FrancisIanMuyco/yomikaze` (public) — initial commit + push done.
+- **Auto-deploy:** `.github/workflows/deploy.yml` → on every push to `main`, GitHub Actions
+  runs `npm ci` + `VITE_BASE_PATH=/yomikaze/ npm run build` and publishes `dist/` to Pages.
+- **SPA routing:** `vite.config.ts` sets `base` (via `VITE_BASE_PATH`) + a build plugin copies
+  `index.html → 404.html` (GitHub Pages fallback), so deep links (`/title/...`, `/reader/...`)
+  work. `App.tsx` BrowserRouter uses `import.meta.env.BASE_URL` as basename.
+- **Env var:** `VITE_BASE_PATH=/yomikaze/` kung mag-deploy sa GitHub Pages sub-path; sa dev
+  walay set (default `/`).
 
 ### 🐛 Build fix (dako kaayo nga improvement)
 - **Problema:** ang `npm run build` nag-hang (5+ min, wala mahuman). Ang hinungdan:
@@ -122,6 +135,12 @@ public/                scraped.json + favicon + demo assets (keep small!)
 
 ## 5 · Known issues / gotchas
 
+0. **MangaDex connectivity (2026-08-14):** niabot ang CORS/network errors sa browser test,
+   pero na-verify nga **up ang MangaDex API globally** (independent check 200 OK). Ang makina
+   mismo (curl + juku logs) kay may problema sa pagkonekta sa `api.mangadex.org` — local/ISP
+   network issue, dili sa code o sa deploy. I-test sa lain nga device/network. Kung regional
+   block gyud, i-switch ang `VITE_CONTENT_PROVIDER=scraped` (mga local data sa `public/scraped.json`).
+
 1. **Dev server lock:** kung magdagan ang `npm run dev`, dili ma-move/rename ang
    `manga-cache/` (locked). Stop sa server una.
 2. **ScrapePage `/api/scrape`:** wala nay backend middleware para sa `/api/scrape` —
@@ -160,3 +179,4 @@ public/                scraped.json + favicon + demo assets (keep small!)
 | Date | Changes |
 |---|---|
 | 2026-08-14 | Build hang fix (manga-cache move + middleware), design polish (animations, hero, cards, reader auto-hide + page-turn), ReaderPage ASI fix, PROGRESS_REPORT.md |
+| 2026-08-14 | **Deployed to GitHub Pages** (live: francisianmuyco.github.io/yomikaze) — repo created, Actions workflow, base path + 404 fallback, verified live |
