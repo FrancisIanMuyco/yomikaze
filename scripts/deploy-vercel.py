@@ -36,8 +36,16 @@ PROJECT = "yomikaze"
 SKIP_DIRS = {
     ".git", "node_modules", "dist", "dist-ssr", ".vercel", ".tools",
     "venv", ".venv", "logs", "__pycache__", ".wrangler", "manga-cache",
+    # Proxy lists carry user:pass credentials — never ship them to a
+    # deployment. The working list lives in the PROXY_LIST repo secret and
+    # is only written to a temp file at runtime in CI.
+    "proxy_checker",
 }
-SKIP_FILES = {".env", ".env.local", ".env.development"}
+SKIP_FILES = {
+    ".env", ".env.local", ".env.development", ".env.cloudflare",
+    # Any other dot-env variant (defense in depth)
+    ".env.production", ".env.test",
+}
 SKIP_EXT = {".pyc", ".log", ".zip", ".exe"}
 
 PROJECT_SETTINGS = {
