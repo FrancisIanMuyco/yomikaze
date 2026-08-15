@@ -4,7 +4,7 @@
 > session, ug unsay sunod buhaton — para dali ra kaayo mag-update ug magpadayon.
 > Update this file after every working session.
 
-Last updated: **2026-08-14** · Status: ✅ **LIVE** on GitHub Pages + builds green + design polished
+Last updated: **2026-08-16** · Status: ✅ **LIVE** on GitHub Pages + **Vercel deploy** (image proxy automatic)
 
 ---
 
@@ -12,7 +12,7 @@ Last updated: **2026-08-14** · Status: ✅ **LIVE** on GitHub Pages + builds gr
 
 | Area | Status |
 |---|---|
-| 🌐 **Live site** | ✅ **https://francisianmuyco.github.io/yomikaze/** (GitHub Pages, auto-deploy sa kada push sa `main`) |
+| 🌐 **Live site** | ✅ **https://francisianmuyco.github.io/yomikaze/** (GitHub Pages) + **https://yomikaze.vercel.app** (Vercel, image proxy automatic) |
 | **Git repo** | ✅ `github.com/FrancisIanMuyco/yomikaze` (public) |
 | `npm run build` | ✅ **~2–15s** (gikan sa >5min nga hang — na-fix) |
 | `npm run typecheck` | ✅ green (app + juku) |
@@ -24,7 +24,25 @@ Last updated: **2026-08-14** · Status: ✅ **LIVE** on GitHub Pages + builds gr
 
 ---
 
-## 2 · Unsa ang nabag-o sa last session (2026-08-14)
+## 2 · Unsa ang nabag-o sa last session (2026-08-16)
+
+### 🚀 Vercel deploy + automatic image proxy (2026-08-16) — NEW
+- **Problema nga na-fix:** ang chapter images nag-error sa production kay ang
+  `/api/mfcdn` image proxy kay dev/preview-only ra sa `vite.config.ts`, ug ang
+  Vercel `MFCDN_PROXIES` env kay **1 ra ka proxy**.
+- **Fix:**
+  - Gi-configure ang `vercel.json` (SPA rewrites + `/api/mfcdn` serverless function).
+  - Gi-push ang **580 ka working proxies** sa Vercel `MFCDN_PROXIES` env
+    (`python scripts/refresh-vercel-proxies.py`).
+  - Gi-deploy sa production (`python scripts/deploy-vercel.py`) — na-fix ang
+    `forceNew=1` → `forceNew=true` query param bug sa deploy script.
+  - **Verified live:** `https://yomikaze.vercel.app` — site loads (200), SPA deep
+    links work, ug ang `/api/mfcdn?url=...` nagbalik ug **real JPEG image
+    (434KB)** pinaagi sa proxies. Automatic na — dili na manual.
+
+---
+
+### 🌐 Deployment (GitHub Pages) — 2026-08-14
 
 ### 🌐 Deployment (GitHub Pages) — NEW
 - **Live URL:** https://francisianmuyco.github.io/yomikaze/
@@ -181,6 +199,7 @@ public/                scraped.json + favicon + demo assets (keep small!)
 
 | Date | Changes |
 |---|---|
+| 2026-08-16 | **Vercel deploy** — vercel.json config, 580 proxies pushed to MFCDN_PROXIES, deploy-vercel.py forceNew fix, image proxy verified live |
 | 2026-08-14 | Build hang fix (manga-cache move + middleware), design polish (animations, hero, cards, reader auto-hide + page-turn), ReaderPage ASI fix, PROGRESS_REPORT.md |
 | 2026-08-14 | **Deployed to GitHub Pages** (live: francisianmuyco.github.io/yomikaze) — repo created, Actions workflow, base path + 404 fallback, verified live |
 | 2026-08-14 | **Cloudflare Worker MangaDex proxy** — na-fix ang ISP block (SNI filtering); API + covers mo-agi sa workers.dev; live content verified (31 titles loading) |

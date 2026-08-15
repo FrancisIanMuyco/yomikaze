@@ -66,12 +66,38 @@ const MFCDN_UA =
 function mangafireImageProxy(): Connect.NextHandleFunction {
   return async (req, res, next) => {
     const url = req.url ?? ''
-    const match = /^\/mfcdn\/([^/]+)\/(.+)$/.exec(url)
-    if (!match) return next()
 
-    const [, host, path] = match
+    // Current format (see proxyImageUrl in src/lib/utils.ts):
+    //   /api/mfcdn?url=<encoded https://host/path>
+    let target: URL | null = null
     try {
-      const upstream = await fetch(`https://${host}/${path}`, {
+      const u = new URL(url, 'http://localhost')
+      if (u.pathname === '/api/mfcdn') {
+        const t = u.searchParams.get('url')
+        if (t) target = new URL(t)
+      }
+    } catch {
+      target = null
+    }
+
+    // Legacy format: /mfcdn/<host>/<path>
+    if (!target) {
+      const match = /^\/mfcdn\/([^/]+)\/(.+)$/.exec(url)
+      if (match) {
+        try {
+          target = new URL(`https://${match[1]}/${match[2]}`)
+        } catch {
+          target = null
+        }
+      }
+    }
+
+    if (!target || target.protocol !== 'https:' || !/mfcdn/i.test(target.hostname)) {
+      return next()
+    }
+
+    try {
+      const upstream = await fetch(target.toString(), {
         headers: {
           Referer: MFCDN_REFERER,
           'User-Agent': MFCDN_UA,
@@ -149,5 +175,9 @@ export default defineConfig({
   },
   preview: {
     port: 4173,
+    // The site can be exposed publicly via a Cloudflare quick tunnel
+    // (trycloudflare.com) so chapter images load from a residential IP.
+    // Allow those hosts through Vite's preview host allowlist.
+    allowedHosts: ['.trycloudflare.com'],
   },
 })

@@ -1,0 +1,79 @@
+name: Refresh proxies
+
+# Weekly: fetch fresh proxy lists, validate them against the MangaFire CDN,
+# and push the working subset to the Vercel MFCDN_PROXIES env var so the
+# /api/mfcdn image proxy keeps working (CDN blocks big cloud IPs, allows
+# small datacenter IPs).
+#
+# Secrets required:
+#   VERCEL_TOKEN  — Vercel deploy token (from .env locally, add as a repo secret)
+#   PROXY_LIST    — current working proxy list (newline-separated) so the
+#                   checker starts from a known-good pool instead of ~95%% dead
+#                   free lists. NOT committed to the repo (proxies carry
+#                   credentials); written to a temp file at runtime.
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"   # Monday 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: refresh-proxies
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: pip install requests
+
+      - name: Fetch fresh proxy lists
+        run: python scripts/fetch-fresh-proxies.py
+
+      - name: Seed working proxy pool from repo secret
+        # The working list lives in the PROXY_LIST secret (never committed —
+        # proxies carry credentials). The checker merges this pool with the
+        # freshly-fetched lists so good proxies are never lost.
+        run: |
+          if [ -n "$PROXY_LIST" ]; then
+            printf '%s\n' "$PROXY_LIST" > proxy_checker/working_proxies.txt
+          fi
+        env:
+          PROXY_LIST: ${{ secrets.PROXY_LIST }}
+
+      - name: Validate against MangaFire CDN
+        # Real mfcdn image URL — proxies that can fetch it (200) are the ones
+        # that will actually work for the site's chapter images.
+        run: |
+          IMG="https://k99.mfcdn2.xyz/mf/12a3db61fa0e4f41a6cc794d81a7e8069135a14754bba1b34b5a37edf329c58d235ddf1e496423eaff35/h/p.jpg"
+          python proxy_checker/checker.py --target "$IMG" --min-working 50
+
+      - name: Push working proxies to Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: python scripts/refresh-vercel-proxies.py
+
+      - name: Refresh PROXY_LIST repo secret
+        # Keep the secret current so update-library (and the next refresh)
+        # start from the freshest known-good pool.
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          if [ -n "$GH_TOKEN" ]; then
+            gh secret set PROXY_LIST --repo FrancisIanMuyco/yomikaze --body "$(cat proxy_checker/working_proxies.txt)"
+          else
+            echo "GH_TOKEN secret not set - PROXY_LIST stays as-is (Vercel env already updated)"
+          fi

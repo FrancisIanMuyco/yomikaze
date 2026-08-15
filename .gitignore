@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Local relay tooling (cloudflared binary for start-relay.bat)
+.tools/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -42,5 +45,27 @@ juku/test-output.json
 # served in dev/preview by the manga-cache middleware in vite.config.ts)
 manga-cache
 
+# Scraper runtime state (repo copy — never commit the venv/logs/archives)
+scraper/venv
+scraper/**/venv
+scraper/logs
+scraper/**/__pycache__
+scraper/**/*.pyc
+scraper/*.zip
+scraper/**/*.zip
+scraper/venv
+
 # Downloader runtime progress (not used by the app)
 public/solo_leveling_progress.json
+
+.vercel
+
+# Proxy lists carry credentials — never commit them to the public repo.
+# The working list is stored as the PROXY_LIST repo secret instead (the
+# workflows write it to proxy_checker/working_proxies.txt at runtime).
+proxy_checker/*.txt
+
+# Python bytecode caches
+__pycache__/
+**/__pycache__/
+*.pyc

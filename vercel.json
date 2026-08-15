@@ -1,0 +1,10 @@
+{
+  "rewrites": [
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "functions": {
+    "api/mfcdn/index.js": {
+      "maxDuration": 30
+    }
+  }
+}

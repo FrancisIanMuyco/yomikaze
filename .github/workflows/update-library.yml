@@ -1,0 +1,88 @@
+name: Update library
+
+# Weekly: re-scrape MangaFire (through the working proxies) for NEW chapters
+# of the existing library titles, commit the updated scraped.json, and deploy
+# to Vercel — so the site's content stays fresh without needing the user's PC.
+#
+# Secrets required:
+#   VERCEL_TOKEN  — Vercel deploy token
+#   PROXY_LIST    — working proxy list (newline-separated) used by the scraper.
+#                   Not committed to the repo (proxies carry credentials) —
+#                   written to proxy_checker/working_proxies.txt at runtime.
+
+on:
+  schedule:
+    - cron: "0 5 * * 1"   # Monday 05:00 UTC (after the proxy refresh at 03:00)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: update-library
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install scraper deps
+        run: |
+          pip install -r scraper/requirements.txt
+
+      - name: Install Playwright chromium
+        run: sudo python -m playwright install --with-deps chromium
+
+      - name: Write proxy pool from repo secret
+        run: |
+          if [ -n "$PROXY_LIST" ]; then
+            printf '%s\n' "$PROXY_LIST" > proxy_checker/working_proxies.txt
+            echo "seeded $(wc -l < proxy_checker/working_proxies.txt) proxies"
+          else
+            echo "PROXY_LIST secret missing - scraping without proxies"
+          fi
+        env:
+          PROXY_LIST: ${{ secrets.PROXY_LIST }}
+
+      - name: Scrape new chapters through proxies
+        # --update: refresh EXISTING library titles (fetch new chapters).
+        # --chapters latest-20: last 20 chapters per title.
+        run: |
+          python scraper/mangafire_catalog.py \
+            --update \
+            --chapters latest-20 \
+            --proxy-file proxy_checker/working_proxies.txt \
+            --output public/scraped.json \
+            --max-proxies 120
+
+      - name: Commit updated library
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/scraped.json
+          git diff --cached --quiet && echo "no changes" || git commit -m "chore: update library with new chapters"
+          git push
+
+      - name: Deploy to Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: python scripts/deploy-vercel.py
+
+      - name: Refresh PROXY_LIST repo secret
+        # Keep the secret current with any proxies discovered this run.
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          if [ -n "$GH_TOKEN" ] && [ -f proxy_checker/working_proxies.txt ]; then
+            gh secret set PROXY_LIST --repo FrancisIanMuyco/yomikaze --body "$(cat proxy_checker/working_proxies.txt)"
+          fi

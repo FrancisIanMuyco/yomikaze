@@ -17,14 +17,20 @@ export function debounce<T extends (...args: never[]) => void>(fn: T, ms: number
 }
 
 /**
- * Rewrites mangafire CDN image URLs to a proxy path so images load with the
+ * Rewrites mangafire CDN image URLs to a proxy so images load with the
  * correct Referer header (MangaFire hotlink protection).
  *
- * - Dev / preview: uses the local middleware path `/mfcdn/<host>/<path>`
- *   (see vite.config.ts) which injects the mangafire Referer server-side.
- * - Production (GitHub Pages / static hosts): when `VITE_IMAGE_PROXY_BASE` is
- *   set (e.g. a Cloudflare Worker URL), URLs are rewritten to
- *   `<proxy-base>/mfcdn/<host>/<path>` — the worker fetches with the Referer.
+ * MangaFire's CDN (*.mfcdn*.xyz) is behind Cloudflare and blocks requests
+ * that come from Cloudflare's own IPs, so the proxy must run somewhere
+ * else (Vercel / Deno) that fetches server-side with the mangafire Referer.
+ *
+ * - Dev / preview: uses the local middleware path `/api/mfcdn?url=...`
+ *   (see vite.config.ts) which injects the Referer server-side from the
+ *   residential IP.
+ * - Production: when `VITE_IMAGE_PROXY_BASE` is set (e.g. a Vercel app URL),
+ *   URLs are rewritten to `<proxy-base>/api/mfcdn?url=<encoded>` — the
+ *   function fetches with the Referer. On Vercel itself the proxy base is
+ *   empty so the relative `/api/mfcdn?url=...` hits the same app's function.
  *
  * Covers live on static.mfcdn.nl and pages on mfcdn*.xyz — both are matched.
  * Non-mangafire URLs pass through unchanged.
@@ -34,7 +40,7 @@ export function proxyImageUrl(url: string | undefined): string | undefined {
   const m = /^https:\/\/([^/]+)\/(.+)$/.exec(url)
   if (m && /(^|\.)mfcdn\d*\./i.test(m[1])) {
     const proxyBase = (import.meta.env.VITE_IMAGE_PROXY_BASE as string | undefined) ?? ''
-    return `${proxyBase}/mfcdn/${m[1]}/${m[2]}`
+    return `${proxyBase}/api/mfcdn?url=${encodeURIComponent(url)}`
   }
   return url
 }
