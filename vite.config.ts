@@ -32,7 +32,7 @@ import type { Connect, Plugin } from 'vite'
 // chapter URLs keep working exactly as before.
 // ---------------------------------------------------------------------------
 
-const MANGA_CACHE_DIR = join(__dirname, 'manga-cache')
+const MANGA_CACHE_DIR = join(import.meta.dirname, 'manga-cache')
 
 function mangaCacheMiddleware(): Connect.NextHandleFunction {
   return (req, res, next) => {
