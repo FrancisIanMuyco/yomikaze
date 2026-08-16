@@ -5,6 +5,7 @@ import type { RawScrapedItem, ScrapedChapter } from '../scrapedTypes'
 
 const STATUS_MAP: Record<string, TitleStatus> = {
   'releasing': 'RELEASING',
+  'ongoing': 'RELEASING',
   'finished': 'FINISHED',
   'hiatus': 'HIATUS',
   'cancelled': 'CANCELLED',

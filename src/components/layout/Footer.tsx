@@ -69,9 +69,11 @@ export function Footer() {
 
         <div className="mt-10 border-t border-black/5 pt-6 dark:border-white/5">
           <p className="text-xs leading-relaxed text-zinc-500">
-            Chapters &amp; metadata: <span className="font-medium text-zinc-600 dark:text-zinc-400">MangaDex</span>{' '}
-            (official API, api.mangadex.org) — credit to MangaDex and the scanlation groups whose uploads appear in the
-            reader. YOMIKAZE does not scrape unauthorized manga sites or rehost copyrighted scans.
+            Chapters &amp; metadata: aggregated from community sources —{' '}
+            <span className="font-medium text-zinc-600 dark:text-zinc-400">MangaFire</span> (mangafire.to) and{' '}
+            <span className="font-medium text-zinc-600 dark:text-zinc-400">AsuraScans</span> (asurascans.com). Credit
+            to the scanlation groups and translators whose uploads appear in the reader. YOMIKAZE is an unofficial fan
+            project — all titles remain the property of their respective authors and publishers.
           </p>
           <p className="mt-3 text-xs text-zinc-500">
             © {new Date().getFullYear()} YOMIKAZE — Read. Discover. Escape.

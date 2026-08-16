@@ -325,6 +325,23 @@ export function ReaderPage() {
     setCurrentPage((prev) => Math.max(0, prev - 1))
   }, [])
 
+  /* --------------------------- image preloading --------------------------- */
+  // Warm the browser cache for the next few pages so turning/scrolling into
+  // them is instant (works for both paged and vertical modes).
+  useEffect(() => {
+    if (status !== 'ready' || pages.length === 0) return
+    const urls = new Set<string>()
+    for (let i = currentPage + 1; i <= Math.min(currentPage + 4, pages.length - 1); i++) {
+      const url = pages[i].imageUrl
+      if (url) urls.add(url)
+    }
+    urls.forEach((url) => {
+      const img = new Image()
+      img.src = url
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, pages, status])
+
   /* --------------------------- vertical scroll --------------------------- */
   const handleScroll = useCallback(() => {
     if (mode !== 'vertical' || !scrollRef.current) return

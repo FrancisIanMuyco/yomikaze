@@ -41,6 +41,7 @@ export function TitleDetailsPage() {
   useSeo({
     title: title?.title,
     description: title?.description?.slice(0, 160),
+    image: title?.coverUrl,
   })
 
   useEffect(() => {

@@ -152,8 +152,16 @@ html:not(.dark) ::-webkit-scrollbar-thumb {
   background: rgba(6, 6, 11, 0.5);
 }
 
-/* Smooth transitions */
-* {
+/* Smooth transitions — scoped to interactive elements so layout-wide jank is avoided
+   (images, cards and text no longer animate on every property change) */
+a,
+button,
+input,
+textarea,
+select,
+summary,
+label,
+[role="button"] {
   transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
