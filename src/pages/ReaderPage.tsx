@@ -325,6 +325,28 @@ export function ReaderPage() {
     setCurrentPage((prev) => Math.max(0, prev - 1))
   }, [])
 
+  // Tap the middle of the reader to show/hide the control bars.
+  const toggleControls = useCallback(() => {
+    setControlsHidden((hidden) => {
+      if (hidden) wakeControls()
+      return !hidden
+    })
+  }, [wakeControls])
+
+  // Jump to an arbitrary page from the seek slider: scroll in vertical mode,
+  // flip in paged mode.
+  const seekPage = useCallback(
+    (i: number) => {
+      const idx = Math.max(0, Math.min(i, pages.length - 1))
+      if (mode === 'vertical' && scrollRef.current && pageRefs.current[idx]) {
+        pageRefs.current[idx]?.scrollIntoView({ block: 'nearest' })
+      } else {
+        setCurrentPage(idx)
+      }
+    },
+    [mode, pages.length],
+  )
+
   /* --------------------------- image preloading --------------------------- */
   // Warm the browser cache for the next few pages so turning/scrolling into
   // them is instant (works for both paged and vertical modes).
@@ -375,10 +397,14 @@ export function ReaderPage() {
       if (e.target instanceof HTMLElement && e.target.closest('button, a, select, input, textarea, [role="button"]')) return
       if (e.key === 'ArrowLeft') {
         e.preventDefault()
-        prevPage()
+        if (mode === 'vertical') {
+          scrollRef.current?.scrollBy({ top: -(scrollRef.current.clientHeight * 0.85) })
+        } else {
+          prevPage()
+        }
       } else if (e.key === 'ArrowRight' || e.key === ' ') {
         e.preventDefault()
-        if (mode === 'vertical' && e.key === ' ') {
+        if (mode === 'vertical') {
           scrollRef.current?.scrollBy({ top: scrollRef.current.clientHeight * 0.85 })
         } else if (mode === 'paged') {
           // Scroll tall fit-width pages first; only advance at the bottom.
@@ -391,6 +417,20 @@ export function ReaderPage() {
           }
         } else {
           nextPage()
+        }
+      } else if (e.key === 'PageDown') {
+        e.preventDefault()
+        if (mode === 'vertical') {
+          scrollRef.current?.scrollBy({ top: scrollRef.current.clientHeight * 0.9 })
+        } else {
+          nextPage()
+        }
+      } else if (e.key === 'PageUp') {
+        e.preventDefault()
+        if (mode === 'vertical') {
+          scrollRef.current?.scrollBy({ top: -(scrollRef.current.clientHeight * 0.9) })
+        } else {
+          prevPage()
         }
       }
     }
@@ -536,8 +576,8 @@ export function ReaderPage() {
     <div
       ref={containerRef}
       onMouseMove={wakeControls}
-      onTouchStart={wakeControls}
-      className="flex h-dvh flex-col bg-night-950 text-zinc-100"
+      className="flex h-dvh flex-col touch-manipulation bg-night-950 text-zinc-100"
+      style={{ WebkitTapHighlightColor: 'transparent' }}
     >
       {/* ------------------------------- Top bar ------------------------------- */}
       <header
@@ -657,7 +697,6 @@ export function ReaderPage() {
           <div
             ref={pagedScrollRef}
             className="absolute inset-0 overflow-y-auto overscroll-contain"
-            onClick={wakeControls}
           >
             <div
               className={cn(
@@ -675,7 +714,7 @@ export function ReaderPage() {
             </div>
           </div>
 
-          {/* Tap zones */}
+          {/* Tap zones: left = prev, center = toggle controls, right = next */}
           <button
             type="button"
             onClick={prevPage}
@@ -686,10 +725,17 @@ export function ReaderPage() {
           />
           <button
             type="button"
-            onClick={nextPage}
-            disabled={atLastPage}
+            onClick={toggleControls}
+            className="absolute inset-y-0 left-1/4 z-10 w-1/2 cursor-pointer"
+            aria-label={controlsHidden ? 'Show controls' : 'Hide controls'}
+            tabIndex={-1}
+          />
+          <button
+            type="button"
+            onClick={() => (atLastPage ? (nextChapter ? goToChapter(nextChapter) : null) : nextPage())}
+            disabled={atLastPage && !nextChapter}
             className="absolute inset-y-0 right-0 z-10 w-1/4 cursor-pointer disabled:cursor-default"
-            aria-label="Next page"
+            aria-label={atLastPage && nextChapter ? 'Next chapter' : 'Next page'}
             tabIndex={-1}
           />
 
@@ -753,9 +799,7 @@ export function ReaderPage() {
           <div
             ref={scrollRef}
             onScroll={handleScroll}
-            onClick={() => {
-              if (controlsHidden) setControlsHidden(false)
-            }}
+            onClick={toggleControls}
             className="flex-1 overflow-y-auto overscroll-contain"
             onTouchStart={onTouchStart}
             onTouchEnd={onTouchEnd}
@@ -833,12 +877,21 @@ export function ReaderPage() {
             {currentPage + 1} / {pages.length}
             <span className="text-flame-400"> · {Math.round(progressPct * 100)}%</span>
           </div>
+          <input
+            type="range"
+            min={0}
+            max={Math.max(pages.length - 1, 0)}
+            value={currentPage}
+            onChange={(e) => seekPage(Number(e.target.value))}
+            className="hidden w-24 cursor-pointer accent-flame-500 md:block lg:w-44"
+            aria-label="Jump to page"
+          />
           <button
             type="button"
-            onClick={nextPage}
-            disabled={atLastPage}
+            onClick={() => (atLastPage ? (nextChapter ? goToChapter(nextChapter) : null) : nextPage())}
+            disabled={atLastPage && !nextChapter}
             className="flex h-10 w-10 items-center justify-center rounded-xl bg-flame-600 text-white transition-colors hover:bg-flame-500 disabled:opacity-30"
-            aria-label="Next page"
+            aria-label={atLastPage && nextChapter ? 'Next chapter' : 'Next page'}
           >
             <ArrowRight className="h-5 w-5" />
           </button>
@@ -969,6 +1022,16 @@ export function ReaderPage() {
                       />
                     </span>
                   </button>
+                </div>
+
+                <div>
+                  <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">Quick tips</h3>
+                  <ul className="space-y-1.5 text-xs leading-relaxed text-zinc-400">
+                    <li>Tap the center of the page to show or hide the controls.</li>
+                    <li>Swipe left / right (or use ← → keys) to flip pages.</li>
+                    <li>Space / PageDown scrolls, PageUp goes back.</li>
+                    <li>On the last page, tap Next to jump straight into the next chapter.</li>
+                  </ul>
                 </div>
               </div>
             )}
