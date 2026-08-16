@@ -918,10 +918,7 @@ export function ReaderPage() {
             aria-label="Close panel"
           />
           <aside
-            className={cn(
-              'absolute top-14 bottom-14 w-80 max-w-[85vw] overflow-hidden rounded-l-2xl border border-white/10 bg-night-900/95 shadow-2xl transition-all duration-300',
-              drawerOpen === 'chapters' ? 'right-0' : 'left-0',
-            )}
+            className="absolute top-14 bottom-14 right-0 w-80 max-w-[85vw] overflow-hidden rounded-l-2xl border border-white/10 bg-night-900/95 shadow-2xl transition-all duration-300"
           >
             <div className="flex h-12 items-center justify-between border-b border-white/10 px-4">
               <h2 className="font-display text-sm font-bold text-white">
@@ -962,7 +959,7 @@ export function ReaderPage() {
                 ))}
               </ul>
             ) : (
-              <div className="space-y-6 p-5">
+              <div className="h-full space-y-6 overflow-y-auto p-5">
                 <div>
                   <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">Reading mode</h3>
                   <div className="grid grid-cols-2 gap-2">
