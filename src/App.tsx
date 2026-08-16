@@ -14,7 +14,6 @@ import { HomePage } from '@/pages/HomePage'
 import { LibraryPage } from '@/pages/LibraryPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { ReaderPage } from '@/pages/ReaderPage'
-import { ScrapePage } from '@/pages/ScrapePage'
 import { SearchPage } from '@/pages/SearchPage'
 import { TitleDetailsPage } from '@/pages/TitleDetailsPage'
 
@@ -32,7 +31,6 @@ export default function App() {
           <Route path="/title/:id" element={<TitleDetailsPage />} />
           <Route path="/favorites" element={<FavoritesPage />} />
           <Route path="/history" element={<HistoryPage />} />
-          <Route path="/scrape" element={<ScrapePage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
         {/* Immersive, chrome-free reader */}

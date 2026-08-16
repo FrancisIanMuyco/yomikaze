@@ -10,7 +10,6 @@ import {
   Search,
   Sun,
   X,
-  Download,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
@@ -36,7 +35,6 @@ const desktopLinks = [
   { to: '/genres', label: 'Genres' },
   { to: '/favorites', label: 'Favorites' },
   { to: '/history', label: 'History' },
-  { to: '/scrape', label: 'Scrape' },
 ]
 
 function DesktopNav() {
@@ -75,7 +73,6 @@ const bottomTabs = [
   { to: '/manga', label: 'Manga', icon: BookOpen },
   { to: '/manhua', label: 'Manhua', icon: Compass },
   { to: '/favorites', label: 'Shelf', icon: Heart },
-  { to: '/scrape', label: 'Scrape', icon: Download },
 ]
 
 export function Navbar({ theme, toggleTheme }: { theme: Theme; toggleTheme: () => void }) {
@@ -215,7 +212,6 @@ export function Navbar({ theme, toggleTheme }: { theme: Theme; toggleTheme: () =
                 { to: '/history', label: 'History', icon: History },
                 { to: '/search', label: 'Search', icon: Search },
                 { to: '/favorites', label: 'Favorites', icon: Heart },
-                { to: '/scrape', label: 'Scrape URL', icon: Download },
               ].map((item) => {
                 const Icon = item.icon
                 return (
