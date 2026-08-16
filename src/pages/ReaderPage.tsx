@@ -84,15 +84,23 @@ function ReaderPageImage({
   eager = false,
   fit = 'width',
   fitClass,
+  zoom = 1,
 }: {
   page: ChapterPage
   eager?: boolean
   fit?: 'width' | 'height'
   fitClass?: string
+  zoom?: number
 }) {
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading')
   const [attempt, setAttempt] = useState(0)
   const heightFit = fit === 'height'
+
+  // Zoom: fit-width images are capped at ~56rem so they don't fill the whole
+  // screen on big monitors; fit-height scales by the zoom factor.
+  const zoomStyle = heightFit
+    ? { height: `${zoom * 100}%` }
+    : { maxWidth: `min(100%, ${Math.round(56 * 16 * zoom)}px)` }
 
   return (
     <div
@@ -133,6 +141,7 @@ function ReaderPageImage({
           status === 'loaded' ? 'opacity-100' : 'opacity-0',
           heightFit ? 'h-full max-w-full w-auto' : 'w-full h-auto',
         )}
+        style={zoomStyle}
       />
     </div>
   )
@@ -158,6 +167,7 @@ export function ReaderPage() {
 
   const [mode, setMode] = useState<ReaderMode>(() => readSetting('yomikaze:reader-mode', 'vertical'))
   const [fit, setFit] = useState<FitMode>(() => readSetting('yomikaze:reader-fit', 'width'))
+  const [zoom, setZoom] = useState(() => readSetting('yomikaze:reader-zoom', 1))
   const [currentPage, setCurrentPage] = useState(0)
   const [controlsHidden, setControlsHidden] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
@@ -464,6 +474,11 @@ export function ReaderPage() {
     setFit(f)
     writeLocalJson('yomikaze:reader-fit', f)
   }
+  const changeZoom = (z: number) => {
+    const clamped = Math.round(Math.min(1.5, Math.max(0.5, z)) * 100) / 100
+    setZoom(clamped)
+    writeLocalJson('yomikaze:reader-zoom', clamped)
+  }
 
   /* ------------------------------ touch swipe ------------------------------ */
   const onTouchStart = (e: React.TouchEvent) => {
@@ -709,6 +724,7 @@ export function ReaderPage() {
                 page={pages[currentPage]}
                 eager
                 fit={fit}
+                zoom={zoom}
                 fitClass={cn('page-turn', fit === 'height' ? 'h-full' : 'min-h-[60vh]')}
               />
             </div>
@@ -804,7 +820,7 @@ export function ReaderPage() {
             onTouchStart={onTouchStart}
             onTouchEnd={onTouchEnd}
           >
-          <div className="mx-auto flex max-w-[1080px] flex-col items-center py-2">
+          <div className="mx-auto flex flex-col items-center py-2" style={{ maxWidth: `${Math.round(900 * zoom)}px` }}>
             {pages.map((page, i) => (
               <div
                 key={page.id}
@@ -813,7 +829,7 @@ export function ReaderPage() {
                 }}
                 className="w-full"
               >
-                <ReaderPageImage page={page} eager={i === 0} fitClass="page-turn" />
+                <ReaderPageImage page={page} eager={i === 0} zoom={zoom} fitClass="page-turn" />
               </div>
             ))}
             <div className="flex w-full flex-col items-center gap-3 py-8 text-center">
@@ -999,6 +1015,32 @@ export function ReaderPage() {
                         Fit {f}
                       </button>
                     ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">Image size</h3>
+                  <div className="flex items-center gap-3 rounded-xl border border-white/10 px-3 py-2.5">
+                    <input
+                      type="range"
+                      min={0.5}
+                      max={1.5}
+                      step={0.05}
+                      value={zoom}
+                      onChange={(e) => changeZoom(Number(e.target.value))}
+                      className="h-1.5 flex-1 cursor-pointer accent-flame-500"
+                      aria-label="Image size"
+                    />
+                    <span className="w-11 shrink-0 text-right text-xs font-bold text-zinc-300">
+                      {Math.round(zoom * 100)}%
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => changeZoom(1)}
+                      className="shrink-0 rounded-lg px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-zinc-400 transition-colors hover:bg-white/5 hover:text-white"
+                    >
+                      Reset
+                    </button>
                   </div>
                 </div>
 
