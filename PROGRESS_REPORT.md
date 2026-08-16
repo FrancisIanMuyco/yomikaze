@@ -4,7 +4,7 @@
 > session, ug unsay sunod buhaton — para dali ra kaayo mag-update ug magpadayon.
 > Update this file after every working session.
 
-Last updated: **2026-08-16** · Status: ✅ **LIVE** on GitHub Pages + **Vercel deploy** (image proxy automatic)
+Last updated: **2026-08-17** · Status: ✅ **LIVE** on GitHub Pages + **Vercel deploy** (image proxy automatic)
 
 ---
 
@@ -17,7 +17,7 @@ Last updated: **2026-08-16** · Status: ✅ **LIVE** on GitHub Pages + **Vercel 
 | `npm run build` | ✅ **~2–15s** (gikan sa >5min nga hang — na-fix) |
 | `npm run typecheck` | ✅ green (app + juku) |
 | Content provider | `mangadex` default (real metadata + real pages) |
-| Scraped store | `public/scraped.json` — 28 titles, 1,697 chapters |
+| Scraped store | `public/scraped.json` — **69 titles, 5,866 chapters** (mangafire 20 + asurascans 49) |
 | Local page cache | `manga-cache/` (34k images, gitignored) |
 | Design | Dark cinematic theme, polished this session |
 | Reader | Paged/vertical, fit width/height, fullscreen, keyboard, auto-hide controls, page-turn animations |
@@ -199,6 +199,7 @@ public/                scraped.json + favicon + demo assets (keep small!)
 
 | Date | Changes |
 |---|---|
+| 2026-08-17 | **AsuraScans +25 titles** (library 69 titles / 5,866 chapters) via visible window run; `--no-proxy` flag sa `mangafire_catalog.py` (VPN/direct mode — rotation logic fixed for no-proxy); bag-o `run_asura_visible.bat` launcher (fixes `'D:\MANGA' is not recognized` quoting bug); **Findings:** mangafire.to + mangakakalot.gg Cloudflare-blocked (datacenter proxies ug Hotspot Shield VPN parehong dead), MangaDex API works (walay Cloudflare — verified via Chrome/Node); 200 proxies (2 batches) sa root `proxy_checker/working_proxies.txt` |
 | 2026-08-16 | **Vercel deploy** — vercel.json config, 580 proxies pushed to MFCDN_PROXIES, deploy-vercel.py forceNew fix, image proxy verified live |
 | 2026-08-14 | Build hang fix (manga-cache move + middleware), design polish (animations, hero, cards, reader auto-hide + page-turn), ReaderPage ASI fix, PROGRESS_REPORT.md |
 | 2026-08-14 | **Deployed to GitHub Pages** (live: francisianmuyco.github.io/yomikaze) — repo created, Actions workflow, base path + 404 fallback, verified live |

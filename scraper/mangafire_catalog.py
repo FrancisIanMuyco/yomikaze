@@ -68,8 +68,8 @@ USER_AGENT = (
     "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
 )
 
-DEFAULT_OUTPUT = Path(__file__).resolve().parent.parent / "public" / "scraped.json"
-DEFAULT_PROXY_FILE = Path(__file__).resolve().parent.parent / "proxy_checker" / "working_proxies.txt"
+DEFAULT_OUTPUT = Path(__file__).resolve().parent.parent / "YOMIKAZE" / "public" / "scraped.json"
+DEFAULT_PROXY_FILE = Path(__file__).resolve().parent.parent.parent / "proxy_checker" / "working_proxies.txt"
 
 TRENDING_DAYS = (1, 7, 30)
 LISTING_PAGES = ("/manga", "/manhua", "/manhwa", "/latest", "/filter")
@@ -713,6 +713,11 @@ def open_working_context(browser, proxies: list[str], max_proxies: int, avoid: s
             old_ctx.close()
         except Exception:
             pass
+    if not proxies:
+        # Direct mode (--no-proxy, e.g. system on ExpressVPN): opening a
+        # fresh context = the "rotation" (new anti-bot clearance).
+        ctx, page = new_context(browser, None)
+        return ctx, page, None
     ordered = [p for p in proxies[:max_proxies] if p != avoid] + [p for p in proxies[:max_proxies] if p == avoid]
     for proxy in ordered:
         try:
@@ -807,6 +812,7 @@ def main() -> int:
     parser.add_argument("--delay", type=float, default=0.5, help="Seconds between chapter API calls")
     parser.add_argument("--headful", action="store_true", help="Show the browser so you can solve mangafire's captcha by hand")
     parser.add_argument("--proxy-file", default=str(DEFAULT_PROXY_FILE), help="Path to proxy list file (one proxy per line)")
+    parser.add_argument("--no-proxy", action="store_true", help="Run DIRECT (no proxies) - e.g. when the system is on ExpressVPN or another VPN")
     parser.add_argument("--max-proxies", type=int, default=60, help="Max proxies to try before giving up")
     parser.add_argument("--no-random", action="store_true", help="Pick newest/trending first instead of random titles from the whole catalog")
     parser.add_argument("--update", action="store_true", help="Refresh EXISTING library titles (fetch new chapters) instead of adding new titles")
@@ -815,10 +821,12 @@ def main() -> int:
     global HEADFUL
     HEADFUL = args.headful
 
-    proxies = load_proxies(args.proxy_file)
-    if not proxies:
-        print("[!] No proxies loaded. Run proxy_checker.py first or provide --proxy-file")
+    proxies = [] if args.no_proxy else load_proxies(args.proxy_file)
+    if not proxies and not args.no_proxy:
+        print("[!] No proxies loaded. Run proxy_checker.py first, provide --proxy-file, or use --no-proxy to go direct (e.g. through ExpressVPN)")
         return 1
+    if args.no_proxy:
+        print("[*] --no-proxy: running DIRECT through the system connection (VPN = your exit IP).")
 
     out_path = Path(args.output)
     existing = load_existing(out_path)

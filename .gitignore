@@ -69,3 +69,6 @@ proxy_checker/*.txt
 __pycache__/
 **/__pycache__/
 *.pyc
+
+# JUKU runtime proxy health state (contains proxy usernames - do not commit)
+juku/proxy-state.json
