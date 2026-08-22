@@ -41,7 +41,13 @@ jobs:
           pip install -r scraper/requirements.txt
 
       - name: Install Playwright chromium
-        run: sudo python -m playwright install --with-deps chromium
+        # BUGFIX (2026-08-22): `sudo python` resolves to SYSTEM python
+        # (/usr/bin/python — walay playwright), mao nga nag-fail ang step
+        # with "/usr/bin/python: No module named playwright".
+        # Gamita ang exact interpreter sa setup-python bisan under sudo.
+        run: |
+          PY="$(command -v python)"
+          sudo "$PY" -m playwright install --with-deps chromium
 
       - name: Write proxy pool from repo secret
         run: |
