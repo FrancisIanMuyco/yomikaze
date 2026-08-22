@@ -4,6 +4,7 @@ import { Outlet } from 'react-router-dom'
 import { Footer } from '@/components/layout/Footer'
 import { Navbar } from '@/components/layout/Navbar'
 import { ScrollToTop } from '@/components/layout/ScrollToTop'
+import { TopProgressBar } from '@/components/layout/TopProgressBar'
 import { useTheme } from '@/hooks/useTheme'
 
 export function MainLayout() {
@@ -19,6 +20,7 @@ export function MainLayout() {
         Skip to content
       </a>
       <ScrollToTop />
+      <TopProgressBar />
       <Navbar theme={theme} toggleTheme={toggleTheme} />
       <main
         id="main-content"

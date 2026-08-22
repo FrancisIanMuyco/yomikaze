@@ -7,6 +7,7 @@ import { CoverImage } from '@/components/ui/CoverImage'
 import { normalizeId } from '@/lib/utils'
 import { EmptyState, ErrorState, SectionHeader } from '@/components/ui/States'
 import { SkeletonGrid, SkeletonHero } from '@/components/ui/Skeletons'
+import { Reveal } from '@/components/ui/Reveal'
 import { TitleCard } from '@/components/ui/TitleCard'
 import { useHistory } from '@/hooks/useHistory'
 import { useLibraryIndex } from '@/hooks/useLibraryIndex'
@@ -255,6 +256,7 @@ export function HomePage() {
 
       {/* -------------------------- Continue reading -------------------------- */}
       {continueReading.length > 0 ? (
+        <Reveal>
         <section>
           <SectionHeader title="Continue Reading" kanji="続きから" action={
             <Link to="/history" className="text-sm font-semibold text-flame-500 hover:text-flame-400">
@@ -299,10 +301,12 @@ export function HomePage() {
             })}
           </div>
         </section>
+      </Reveal>
       ) : null}
 
       {/* ------------------------------ Trending ------------------------------ */}
-      <section>
+      <Reveal>
+        <section>
         <SectionHeader
           title="Trending Manga"
           kanji="人気漫画"
@@ -320,9 +324,11 @@ export function HomePage() {
           <EmptyState title="No manga trending right now" />
         )}
       </section>
+      </Reveal>
 
       {/* --------------------------- Trending manhua --------------------------- */}
-      <section>
+      <Reveal>
+        <section>
         <SectionHeader
           title="Trending Manhua & Manhwa"
           kanji="人気漫画（中国・韓国）"
@@ -340,15 +346,19 @@ export function HomePage() {
           <EmptyState title="No manhua trending right now" />
         )}
       </section>
+      </Reveal>
 
       {/* ------------------------------- Popular ------------------------------- */}
-      <section>
+      <Reveal>
+        <section>
         <SectionHeader title="Popular Right Now" kanji="今人気" />
         {popular === null ? <SkeletonGrid count={10} /> : <TitleGrid titles={(popular ?? []).slice(0, 10)} />}
       </section>
+      </Reveal>
 
       {/* ------------------------------ Latest ------------------------------ */}
-      <section>
+      <Reveal>
+        <section>
         <SectionHeader
           title="Latest Updates"
           kanji="最新更新"
@@ -360,9 +370,11 @@ export function HomePage() {
         />
         {latest === null ? <SkeletonGrid count={10} /> : <TitleGrid titles={(latest ?? []).slice(0, 10)} />}
       </section>
+      </Reveal>
 
       {/* ---------------------------- Popular genres ---------------------------- */}
-      <section>
+      <Reveal>
+        <section>
         <SectionHeader
           title="Popular Genres"
           kanji="ジャンル"
@@ -374,6 +386,7 @@ export function HomePage() {
         />
         <GenreRail />
       </section>
+      </Reveal>
     </div>
   )
 }
