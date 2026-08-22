@@ -79,6 +79,9 @@ async function resolveStaleReaderLink(
 /* Per-page image with skeleton + broken-image fallback                */
 /* ------------------------------------------------------------------ */
 
+/** Auto-retry limit per page image (exponential backoff: 1s, 2s, 4s). */
+const MAX_AUTO_RETRIES = 3
+
 function ReaderPageImage({
   page,
   eager = false,
@@ -94,7 +97,32 @@ function ReaderPageImage({
 }) {
   const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading')
   const [attempt, setAttempt] = useState(0)
+  // AUTO-RETRY (2026-08-22): ang 502s sa mfcdn proxy rotation kay transient
+  // (patay/dead proxy ang na-random) — kasagaran mo-work dayon sa sunod try.
+  // Automatic retries with exponential backoff before showing the manual UI.
+  const [autoLeft, setAutoLeft] = useState(MAX_AUTO_RETRIES)
   const heightFit = fit === 'height'
+
+  useEffect(() => {
+    if (status !== 'error' || autoLeft <= 0) return
+    const delay = 1000 * 2 ** (MAX_AUTO_RETRIES - autoLeft)
+    const t = setTimeout(() => {
+      setAutoLeft((l) => l - 1)
+      setAttempt((a) => a + 1)
+      setStatus('loading')
+    }, delay)
+    return () => clearTimeout(t)
+  }, [status, autoLeft])
+
+  const manualRetry = () => {
+    setAutoLeft(MAX_AUTO_RETRIES)
+    setAttempt((a) => a + 1)
+    setStatus('loading')
+  }
+
+  // Cache-bust on retry: parehas nga src kay basihin lang og cached fail.
+  const src =
+    attempt > 0 ? `${page.imageUrl}${page.imageUrl.includes('?') ? '&' : '?'}r=${attempt}` : page.imageUrl
 
   // Zoom: fit-width images are capped at ~56rem so they don't fill the whole
   // screen on big monitors; fit-height scales by the zoom factor.
@@ -110,35 +138,41 @@ function ReaderPageImage({
       {status !== 'loaded' ? (
         <div className={cn('skeleton absolute inset-0 rounded-md', status === 'error' && '!bg-transparent')}>
           {status === 'error' ? (
-            <div className="flex h-full w-full flex-col items-center justify-center gap-3 rounded-md bg-black/60 p-6 text-center">
-              <ImageOff className="h-8 w-8 text-zinc-500" />
-              <p className="text-sm text-zinc-400">This page could not be loaded.</p>
-              <button
-                type="button"
-                onClick={() => {
-                  setAttempt((a) => a + 1)
-                  setStatus('loading')
-                }}
-                className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold text-zinc-300 transition-colors hover:border-flame-500/50 hover:text-flame-300"
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                Retry page
-              </button>
-            </div>
+            autoLeft > 0 ? (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-2 rounded-md bg-black/40 p-6 text-center">
+                <RefreshCw className="h-5 w-5 animate-spin text-zinc-400" />
+                <p className="text-xs text-zinc-500">
+                  Auto-retrying… {MAX_AUTO_RETRIES - autoLeft}/{MAX_AUTO_RETRIES}
+                </p>
+              </div>
+            ) : (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-3 rounded-md bg-black/60 p-6 text-center">
+                <ImageOff className="h-8 w-8 text-zinc-500" />
+                <p className="text-sm text-zinc-400">This page could not be loaded.</p>
+                <button
+                  type="button"
+                  onClick={manualRetry}
+                  className="inline-flex items-center gap-2 rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold text-zinc-300 transition-colors hover:border-flame-500/50 hover:text-flame-300"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Retry page
+                </button>
+              </div>
+            )
           ) : null}
         </div>
       ) : null}
       <img
         key={`${page.imageUrl}:${attempt}`}
-        src={page.imageUrl}
+        src={src}
         alt={page.alt}
         loading={eager ? 'eager' : 'lazy'}
         decoding="async"
         onLoad={() => setStatus('loaded')}
         onError={() => setStatus('error')}
         className={cn(
-          'select-none object-contain transition-opacity duration-300',
-          status === 'loaded' ? 'opacity-100' : 'opacity-0',
+          'select-none object-contain transition-[opacity,filter] duration-500 ease-out',
+          status === 'loaded' ? 'opacity-100 blur-0' : 'opacity-0 blur-md scale-[1.02]',
           heightFit ? 'h-full max-w-full w-auto' : 'w-full h-auto',
         )}
         style={zoomStyle}
