@@ -14,7 +14,9 @@ name: Refresh proxies
 
 on:
   schedule:
-    - cron: "0 3 * * 1"   # Monday 03:00 UTC
+    - cron: "0 3 * * *"   # DAILY 03:00 UTC (2026-08-22 upgrade: gikan weekly —
+                          # ang free proxies mobalhin og patay sulod lang sa
+                          # pipila ka adlaw, mao nga daily na ang refresh)
   workflow_dispatch:
 
 permissions:
@@ -76,4 +78,17 @@ jobs:
             gh secret set PROXY_LIST --repo FrancisIanMuyco/yomikaze --body "$(cat proxy_checker/working_proxies.txt)"
           else
             echo "GH_TOKEN secret not set - PROXY_LIST stays as-is (Vercel env already updated)"
+          fi
+
+      - name: Chain update-library run
+        # Bag-ong proxies = chance nga mo-work na ang mangafire scrape.
+        # I-trigger dayon ang update-library human sa matag successful refresh.
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          if [ -n "$GH_TOKEN" ]; then
+            gh workflow run "Update library" --repo FrancisIanMuyco/yomikaze
+            echo "update-library dispatched"
+          else
+            echo "GH_TOKEN not set - skip chaining"
           fi
