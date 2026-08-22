@@ -5,6 +5,7 @@ import { fileURLToPath, URL } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
+import { VitePWA } from 'vite-plugin-pwa'
 import type { Connect, Plugin } from 'vite'
 
 // ---------------------------------------------------------------------------
@@ -133,6 +134,48 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    // PWA (2026-08-22): installable app + offline support.
+    // - App shell cached on first visit; SPA navigations served offline.
+    // - Chapter images (/api/mfcdn) cached CacheFirst — visited pages stay
+    //   readable even offline, and repeat visits load instantly.
+    VitePWA({
+      registerType: 'autoUpdate',
+      injectRegister: 'auto',
+      includeAssets: ['favicon.svg', 'pwa-192.png', 'pwa-512.png'],
+      manifest: {
+        name: 'YOMIKAZE — Read. Discover. Escape.',
+        short_name: 'YOMIKAZE',
+        description: 'A modern manga + manhua discovery and reading platform.',
+        theme_color: '#0b0b12',
+        background_color: '#0b0b12',
+        display: 'standalone',
+        start_url: '.',
+        scope: '.',
+        icons: [
+          { src: 'pwa-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'pwa-512.png', sizes: '512x512', type: 'image/png' },
+          { src: 'pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
+      workbox: {
+        navigateFallback: 'index.html',
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+        runtimeCaching: [
+          {
+            // Chapter page images via the mfcdn proxy — CacheFirst.
+            urlPattern: /\/api\/mfcdn\?url=/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'mfcdn-pages-v1',
+              expiration: { maxEntries: 800, maxAgeSeconds: 60 * 60 * 24 * 30, purgeOnQuotaError: true },
+              cacheableResponse: { statuses: [0, 200] },
+              rangeRequests: false,
+            },
+          },
+        ],
+      },
+    }),
     // GitHub Pages SPA fallback: unknown paths (e.g. /title/xxx, /reader/...)
     // serve 404.html instead of a hard 404, and since 404.html is a copy of
     // index.html, React Router picks the route up client-side.
