@@ -39,6 +39,7 @@ jobs:
       - name: Install scraper deps
         run: |
           pip install -r scraper/requirements.txt
+          pip install "scrapling[fetchers]"
 
       - name: Install Playwright chromium
         # BUGFIX (2026-08-22): `sudo python` resolves to SYSTEM python
@@ -70,6 +71,20 @@ jobs:
             --proxy-file proxy_checker/working_proxies.txt \
             --output public/scraped.json \
             --max-proxies 120
+
+      - name: Scrape new AsuraScans titles (dedup merge)
+        # AsuraScans = server-rendered site, NO browser/proxies needed.
+        # Built-in dedup: existing titles/chapters are never re-scraped —
+        # kini nga step nagdugang lang ug bag-ong titles sa library.
+        # Non-fatal: kung mo-fail (site down / network), i-continue gihapon
+        # ang commit + deploy para dili ma-lose ang nakuha sa mangafire.
+        run: |
+          python scraper/asurascans_scraper.py \
+            --limit 15 \
+            --chapters latest-20 \
+            --delay 0.5 \
+            --output public/scraped.json \
+            || echo "::warning::AsuraScans scrape failed — continuing with current library"
 
       - name: Commit updated library
         run: |
