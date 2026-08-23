@@ -9,6 +9,7 @@ import {
   Moon,
   Search,
   Sun,
+  TrendingUp,
   X,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -35,6 +36,7 @@ const desktopLinks = [
   { to: '/genres', label: 'Genres' },
   { to: '/favorites', label: 'Favorites' },
   { to: '/history', label: 'History' },
+  { to: '/stats', label: 'Stats' },
 ]
 
 function DesktopNav() {
@@ -210,6 +212,7 @@ export function Navbar({ theme, toggleTheme }: { theme: Theme; toggleTheme: () =
               {[
                 { to: '/genres', label: 'Genres', icon: LayoutGrid },
                 { to: '/history', label: 'History', icon: History },
+                { to: '/stats', label: 'Stats', icon: TrendingUp },
                 { to: '/search', label: 'Search', icon: Search },
                 { to: '/favorites', label: 'Favorites', icon: Heart },
               ].map((item) => {

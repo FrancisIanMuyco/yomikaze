@@ -27,23 +27,39 @@ export class ScrapedProvider implements ContentProvider {
   readonly label = 'Scraped (local JSON)'
 
   private items: RawScrapedItem[] = []
-  private chapters: ScrapedChapter[] = []
   private titlesById = new Map<string, Title>()
   private chaptersByTitleId = new Map<string, Chapter[]>()
+  private titleChaptersLoaded = new Set<string>()
   private loadPromise: Promise<void> | null = null
 
   constructor() {
-    this.loadPromise = this.loadData()
+    this.loadPromise = this.loadIndex()
   }
 
-  private async loadData() {
+  /** Load the lightweight index (items only, no chapters). */
+  private async loadIndex() {
+    try {
+      // Try lazy-loaded titles.json first (new format)
+      const res = await fetch(`${import.meta.env.BASE_URL}titles.json`)
+      if (res.ok) {
+        const data = await res.json()
+        this.items = data.items || []
+        this.indexTitles()
+        return
+      }
+    } catch {
+      // fallback to legacy scraped.json
+    }
     try {
       const res = await fetch(`${import.meta.env.BASE_URL}scraped.json`)
       if (!res.ok) return
       const data = await res.json()
       this.items = data.items || [data]
-      this.chapters = data.chapters || []
-      this.index()
+      // Legacy: chapters are in the same file
+      if (data.chapters) {
+        this.indexLegacyChapters(data.chapters)
+      }
+      this.indexTitles()
     } catch {
       // no scraped data available yet
     }
@@ -53,7 +69,26 @@ export class ScrapedProvider implements ContentProvider {
     if (this.loadPromise) await this.loadPromise
   }
 
-  private index() {
+  /** Load chapters for a specific title on demand. */
+  private async loadTitleChapters(titleId: string): Promise<void> {
+    if (this.titleChaptersLoaded.has(titleId)) return
+    // Extract source_id from titleId (format: "scraped:<source_id>")
+    const sourceId = titleId.replace(/^scraped:/, '')
+    try {
+      const res = await fetch(`${import.meta.env.BASE_URL}titles/${sourceId}.json`)
+      if (!res.ok) return
+      const data = await res.json()
+      if (data.chapters) {
+        this.indexChaptersForTitle(titleId, data.chapters)
+      }
+      this.titleChaptersLoaded.add(titleId)
+    } catch {
+      // title chapters not available
+    }
+  }
+
+  /** Index titles only (no chapters — lazy loaded). */
+  private indexTitles() {
     for (const item of this.items) {
       const title: Title = {
         id: `scraped:${item.source_id}`,
@@ -73,29 +108,37 @@ export class ScrapedProvider implements ContentProvider {
       }
       this.titlesById.set(title.id, title)
     }
+  }
 
+  /** Index chapters for a single title. */
+  private indexChaptersForTitle(titleId: string, scrapedChapters: ScrapedChapter[]) {
+    scrapedChapters.sort((a, b) => a.number - b.number)
+    const chapters: Chapter[] = scrapedChapters.map((ch, idx) => ({
+      id: ch.chapter_id,
+      providerId: 'scraped',
+      titleId,
+      chapterNumber: ch.number,
+      title: ch.title || `Chapter ${ch.number}`,
+      publishedAt: undefined,
+      updatedAt: Date.now() - (scrapedChapters.length - idx) * 86400000,
+      available: true,
+      pageCount: ch.pages.length,
+    }))
+    this.chaptersByTitleId.set(titleId, chapters)
+  }
+
+  /** Legacy: index chapters from the old scraped.json format. */
+  private indexLegacyChapters(chapters: ScrapedChapter[]) {
     const chaptersBySeries = new Map<string, ScrapedChapter[]>()
-    for (const ch of this.chapters) {
+    for (const ch of chapters) {
       const arr = chaptersBySeries.get(ch.series_id) || []
       arr.push(ch)
       chaptersBySeries.set(ch.series_id, arr)
     }
-
     for (const [seriesId, chs] of chaptersBySeries) {
-      chs.sort((a, b) => a.number - b.number)
       const titleId = `scraped:${seriesId}`
-      const chapters: Chapter[] = chs.map((ch, idx) => ({
-        id: ch.chapter_id,
-        providerId: 'scraped',
-        titleId,
-        chapterNumber: ch.number,
-        title: ch.title || `Chapter ${ch.number}`,
-        publishedAt: undefined,
-        updatedAt: Date.now() - (chs.length - idx) * 86400000,
-        available: true,
-        pageCount: ch.pages.length,
-      }))
-      this.chaptersByTitleId.set(titleId, chapters)
+      this.indexChaptersForTitle(titleId, chs)
+      this.titleChaptersLoaded.add(titleId)
     }
   }
 
@@ -120,6 +163,7 @@ export class ScrapedProvider implements ContentProvider {
 
   async getChapters(titleId: string): Promise<Chapter[]> {
     await this.ensureLoaded()
+    await this.loadTitleChapters(titleId)
     return this.chaptersByTitleId.get(titleId) || []
   }
 
@@ -134,21 +178,43 @@ export class ScrapedProvider implements ContentProvider {
 
   async getChapterPages(chapterId: string): Promise<ChapterPage[]> {
     await this.ensureLoaded()
-    for (const ch of this.chapters) {
-      if (ch.chapter_id === chapterId) {
-        return ch.pages.map((url, idx) => ({
-          id: `${chapterId}:p${idx + 1}`,
-          chapterId,
-          pageNumber: idx + 1,
-          imageUrl: proxyImageUrl(url) || url,
-          width: undefined,
-          height: undefined,
-          alt: `Page ${idx + 1}`,
-          source: 'scraped',
-        }))
+    // Find the chapter's titleId from loaded chapters
+    for (const [titleId, chs] of this.chaptersByTitleId) {
+      const found = chs.find(c => c.id === chapterId)
+      if (found) {
+        // Ensure this title's chapters are loaded
+        await this.loadTitleChapters(titleId)
+        // Now find the raw chapter data for page URLs
+        const rawChapters = await this.getRawChaptersForTitle(titleId)
+        const rawCh = rawChapters.find(c => c.chapter_id === chapterId)
+        if (rawCh) {
+          return rawCh.pages.map((url, idx) => ({
+            id: `${chapterId}:p${idx + 1}`,
+            chapterId,
+            pageNumber: idx + 1,
+            imageUrl: proxyImageUrl(url) || url,
+            width: undefined,
+            height: undefined,
+            alt: `Page ${idx + 1}`,
+            source: 'scraped',
+          }))
+        }
       }
     }
     return []
+  }
+
+  /** Fetch raw scraped chapter data (with page URLs) for a title. */
+  private async getRawChaptersForTitle(titleId: string): Promise<ScrapedChapter[]> {
+    const sourceId = titleId.replace(/^scraped:/, '')
+    try {
+      const res = await fetch(`${import.meta.env.BASE_URL}titles/${sourceId}.json`)
+      if (!res.ok) return []
+      const data = await res.json()
+      return data.chapters || []
+    } catch {
+      return []
+    }
   }
 
   async getGenres(): Promise<string[]> {

@@ -9,12 +9,14 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
+  HelpCircle,
   ImageOff,
   List,
   Maximize2,
   Minimize2,
   RefreshCw,
   Settings2,
+  Share2,
   X,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -206,6 +208,7 @@ export function ReaderPage() {
   const [controlsHidden, setControlsHidden] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState<'chapters' | 'settings' | null>(null)
+  const [showShortcuts, setShowShortcuts] = useState(false)
 
   // Auto-hide the top/bottom bars while reading: any mousemove, scroll or tap
   // shows them again, then they fade out after a short idle period.
@@ -434,9 +437,16 @@ export function ReaderPage() {
       if (e.key === 'Escape') {
         if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined)
         setDrawerOpen(null)
+        setShowShortcuts(false)
         return
       }
-      if (drawerOpen) return
+      if (drawerOpen || showShortcuts) return
+      // ? key opens shortcuts overlay
+      if (e.key === '?') {
+        e.preventDefault()
+        setShowShortcuts(true)
+        return
+      }
       // Don't hijack keys while an interactive control has focus (e.g. Space on a button).
       if (e.target instanceof HTMLElement && e.target.closest('button, a, select, input, textarea, [role="button"]')) return
       if (e.key === 'ArrowLeft') {
@@ -480,7 +490,27 @@ export function ReaderPage() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [prevPage, nextPage, mode, drawerOpen])
+  }, [prevPage, nextPage, mode, drawerOpen, showShortcuts])
+
+  /* ------------------------------ share ------------------------------ */
+  const handleShare = useCallback(async () => {
+    const shareData = {
+      title: `${title?.title ?? 'YOMIKAZE'} — Ch. ${chapter?.chapterNumber}`,
+      text: `Read ${title?.title} Chapter ${chapter?.chapterNumber} on YOMIKAZE`,
+      url: window.location.href,
+    }
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData)
+      } else {
+        // Fallback: copy URL to clipboard
+        await navigator.clipboard.writeText(window.location.href)
+        // You could show a toast here
+      }
+    } catch {
+      // User cancelled or error — silently ignore
+    }
+  }, [title, chapter])
 
   /* ------------------------------ fullscreen ------------------------------ */
   const toggleFullscreen = useCallback(() => {
@@ -707,6 +737,22 @@ export function ReaderPage() {
             aria-label={fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
           >
             {fullscreen ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
+          </button>
+          <button
+            type="button"
+            onClick={handleShare}
+            className="hidden h-9 w-9 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-white/5 hover:text-white sm:flex"
+            aria-label="Share chapter"
+          >
+            <Share2 className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowShortcuts(true)}
+            className="hidden h-9 w-9 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-white/5 hover:text-white sm:flex"
+            aria-label="Keyboard shortcuts"
+          >
+            <HelpCircle className="h-5 w-5" />
           </button>
           <button
             type="button"
@@ -1124,6 +1170,71 @@ export function ReaderPage() {
       >
         <Maximize2 className="h-5 w-5" />
       </button>
+
+      {/* Mobile share button */}
+      <button
+        type="button"
+        onClick={handleShare}
+        className={cn(
+          'absolute bottom-20 left-3 z-30 flex h-10 w-10 items-center justify-center rounded-xl bg-black/50 text-zinc-300 backdrop-blur-sm transition-colors hover:text-white sm:hidden',
+          controlsClass,
+        )}
+        aria-label="Share chapter"
+      >
+        <Share2 className="h-5 w-5" />
+      </button>
+
+      {/* Shortcuts overlay */}
+      {showShortcuts ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+          <button
+            type="button"
+            className="absolute inset-0"
+            onClick={() => setShowShortcuts(false)}
+            aria-label="Close"
+          />
+          <div className="relative mx-4 w-full max-w-md rounded-2xl border border-white/10 bg-night-900 p-6 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-white">Keyboard Shortcuts</h2>
+              <button
+                type="button"
+                onClick={() => setShowShortcuts(false)}
+                className="rounded-lg p-1.5 text-zinc-400 hover:bg-white/10 hover:text-white"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <ShortcutRow keys={['←']} description="Previous page" />
+              <ShortcutRow keys={['→', 'Space']} description="Next page" />
+              <ShortcutRow keys={['PageUp']} description="Scroll up / prev page" />
+              <ShortcutRow keys={['PageDown']} description="Scroll down / next page" />
+              <ShortcutRow keys={['Esc']} description="Close drawer / exit fullscreen" />
+              <ShortcutRow keys={['?']} description="Show this help" />
+            </div>
+            <p className="mt-4 text-center text-xs text-zinc-500">Tap the center to show/hide controls</p>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function ShortcutRow({ keys, description }: { keys: string[]; description: string }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-sm text-zinc-300">{description}</span>
+      <div className="flex gap-1">
+        {keys.map((key) => (
+          <kbd
+            key={key}
+            className="inline-flex h-7 min-w-[28px] items-center justify-center rounded-md border border-white/15 bg-white/5 px-2 text-xs font-bold text-zinc-300"
+          >
+            {key}
+          </kbd>
+        ))}
+      </div>
     </div>
   )
 }

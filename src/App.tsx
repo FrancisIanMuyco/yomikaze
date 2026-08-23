@@ -11,6 +11,7 @@ import { FavoritesPage } from '@/pages/FavoritesPage'
 import { GenresPage } from '@/pages/GenresPage'
 import { HistoryPage } from '@/pages/HistoryPage'
 import { HomePage } from '@/pages/HomePage'
+import { StatsPage } from '@/pages/StatsPage'
 import { LibraryPage } from '@/pages/LibraryPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { ReaderPage } from '@/pages/ReaderPage'
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="/title/:id" element={<TitleDetailsPage />} />
           <Route path="/favorites" element={<FavoritesPage />} />
           <Route path="/history" element={<HistoryPage />} />
+          <Route path="/stats" element={<StatsPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
         {/* Immersive, chrome-free reader */}
