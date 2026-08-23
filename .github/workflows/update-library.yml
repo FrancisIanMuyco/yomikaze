@@ -64,7 +64,31 @@ jobs:
       - name: Scrape new chapters through proxies
         # --update: refresh EXISTING library titles (fetch new chapters).
         # --chapters latest-20: last 20 chapters per title.
+        #
+        # Pre-flight + non-fatal (2026-08-23): ang Cloudflare sa mangafire.to
+        # kanunay mo-block sa datacenter/proxy IPs (known issue sa progress.md).
+        # Kaniadto: mag-rotate og ~40min nga proxies para sa matag title dayon
+        # FAIL ang tibuok workflow → dili makaabot ang AsuraScans + commit/deploy.
+        # Karon: e-test una ang 5 ka proxies vs mangafire.to — kung tanan blocked,
+        # skip daun ang heavy scrape (warning lang), padayon gihapon sa next steps.
+        continue-on-error: true
         run: |
+          PREFLIGHT_PASS=0
+          PREFLIGHT_FAILS=0
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+          for i in 1 2 3 4 5; do
+            PROXY=$(shuf -n 1 proxy_checker/working_proxies.txt 2>/dev/null || true)
+            [ -z "$PROXY" ] && { echo "no proxies in pool"; break; }
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 \
+              -x "$PROXY" -A "$UA" https://mangafire.to/ || echo 000)
+            echo "preflight $i -> HTTP $CODE"
+            if [ "$CODE" = "200" ]; then PREFLIGHT_PASS=1; break; fi
+            PREFLIGHT_FAILS=$((PREFLIGHT_FAILS+1))
+          done
+          if [ "$PREFLIGHT_PASS" != "1" ]; then
+            echo "::warning::MangaFire preflight: $PREFLIGHT_FAILS proxies blocked by Cloudflare — skipping MangaFire scrape"
+            exit 1
+          fi
           python scraper/mangafire_catalog.py \
             --update \
             --chapters latest-20 \
