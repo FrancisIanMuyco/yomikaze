@@ -80,14 +80,22 @@ html:not(.dark) .skeleton {
   background-image: linear-gradient(
     90deg,
     transparent,
-    rgba(255, 255, 255, 0.09),
+    rgba(255, 255, 255, 0.13),
+    rgba(255, 255, 255, 0.05),
     transparent
   );
-  animation: shimmer 1.6s infinite;
+  animation: shimmer 1.8s ease-in-out infinite;
+  animation-delay: var(--shimmer-delay, 0s);
+  will-change: transform;
 }
 @keyframes shimmer {
   100% {
     transform: translateX(100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    animation: none;
   }
 }
 
