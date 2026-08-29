@@ -38,6 +38,29 @@ const HEADERS = {
   'Accept-Language': 'en-US,en;q=0.9',
 }
 
+async function fetchDirect(targetUrl, timeout = 20000) {
+  try {
+    const res = await axios.get(targetUrl, {
+      headers: HEADERS,
+      proxy: false,
+      responseType: 'arraybuffer',
+      timeout,
+      maxRedirects: 5,
+      validateStatus: () => true,
+    })
+    if (res.status === 403 || res.status === 407 || res.status === 408 || res.status === 429 || res.status >= 500) {
+      return null // blocked / transient — let the proxy path handle it
+    }
+    return {
+      status: res.status,
+      data: Buffer.from(res.data),
+      contentType: res.headers['content-type'] || 'image/jpeg',
+    }
+  } catch {
+    return null
+  }
+}
+
 async function fetchViaProxies(targetUrl, attempts = 8) {
   const order = [...PROXIES].sort(() => Math.random() - 0.5).slice(0, attempts)
   let lastErr
@@ -88,7 +111,17 @@ export default async function handler(req, res) {
   }
 
   try {
-    const upstream = await fetchViaProxies(upstreamUrl.toString())
+    // Try Vercel's own egress first (fastest path, no proxy dependency). The
+    // mangafire CDN sometimes allows it directly (referer-only hotlink check);
+    // if the IP is blocked it falls through to the proxy list.
+    let upstream = await fetchDirect(upstreamUrl.toString())
+    if (!upstream) {
+      if (PROXIES.length) {
+        upstream = await fetchViaProxies(upstreamUrl.toString())
+      } else {
+        throw new Error('direct blocked and no proxies configured')
+      }
+    }
     res.setHeader('Content-Type', upstream.contentType)
     res.setHeader('Cache-Control', 'public, max-age=86400')
     res.setHeader('Access-Control-Allow-Origin', '*')
