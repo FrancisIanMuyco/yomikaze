@@ -2,9 +2,11 @@
 // Vercel serverless function — anonymous presence beacon.
 // `view` ⇒ refresh `presence:<id>` (TTL 120s, heartbeat every 45s).
 // `read` ⇒ same presence ping + INCR this month's reads counter.
+// Reads either UPSTASH_REST_URL/TOKEN or the Vercel-marketplace injected
+// UPSTASH_REDIS_REST_URL/TOKEN (Upstash integration).
 
-const url = process.env.UPSTASH_REST_URL
-const token = process.env.UPSTASH_REST_TOKEN
+const url = process.env.UPSTASH_REST_URL || process.env.UPSTASH_REDIS_REST_URL
+const token = process.env.UPSTASH_REST_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN
 
 function enabled() {
   return Boolean(url && token)
