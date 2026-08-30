@@ -1,0 +1,198 @@
+import { Loader2, Search } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+
+import { useDebouncedValue } from '@/hooks/useDebouncedValue'
+import { cn } from '@/lib/utils'
+import { provider } from '@/providers/ProviderFactory'
+import type { Title } from '@/types'
+
+interface Props {
+  className?: string
+  /** Stretch the input to fill its container (mobile overlay). */
+  fullWidth?: boolean
+  autoFocus?: boolean
+  /** Called after navigating anywhere (lets overlays close themselves). */
+  onDone?: () => void
+}
+
+/** Navbar search with an instant suggestion dropdown (type-ahead, like Google). */
+export function NavSearchAutocomplete({ className, fullWidth = false, autoFocus = false, onDone }: Props) {
+  const navigate = useNavigate()
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [results, setResults] = useState<Title[]>([])
+  const [active, setActive] = useState(-1)
+  const itemRefs = useRef<Array<HTMLLIElement | null>>([])
+  const debounced = useDebouncedValue(query, 350)
+
+  useEffect(() => {
+    const q = debounced.trim()
+    if (!q) {
+      setResults([])
+      setBusy(false)
+      return
+    }
+    setBusy(true)
+    let alive = true
+    provider
+      .searchTitles(q)
+      .then((titles) => {
+        if (!alive) return
+        setResults(titles)
+        setBusy(false)
+        setActive(-1)
+      })
+      .catch(() => {
+        if (alive) {
+          setResults([])
+          setBusy(false)
+        }
+      })
+    return () => {
+      alive = false
+    }
+  }, [debounced])
+
+  useEffect(() => {
+    if (active >= 0) itemRefs.current[active]?.scrollIntoView({ block: 'nearest' })
+  }, [active])
+
+  const close = () => setOpen(false)
+
+  const finish = () => {
+    setQuery('')
+    close()
+    onDone?.()
+  }
+
+  const goSearch = () => {
+    const term = query.trim()
+    navigate(term ? `/search?q=${encodeURIComponent(term)}` : '/search')
+    finish()
+  }
+
+  const pickTitle = (t: Title) => {
+    navigate(`/title/${t.id}`)
+    finish()
+  }
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      close()
+      return
+    }
+    if (!open || results.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActive((a) => (a + 1) % results.length)
+      return
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActive((a) => (a - 1 + results.length) % results.length)
+      return
+    }
+    if (e.key === 'Enter' && active >= 0) {
+      e.preventDefault()
+      pickTitle(results[active])
+    }
+  }
+
+  const showDrop = open && query.trim().length > 0
+  const trimmed = query.trim()
+
+  return (
+    <form
+      role="search"
+      className={cn('relative', className)}
+      onSubmit={(e) => {
+        e.preventDefault()
+        goSearch()
+      }}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) close()
+      }}
+    >
+      <div className="relative group">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400 transition-colors group-focus-within:text-flame-400" />
+        <input
+          type="search"
+          value={query}
+          autoFocus={autoFocus}
+          aria-label="Search titles"
+          aria-autocomplete="list"
+          aria-expanded={showDrop}
+          aria-controls={showDrop ? 'nav-search-results' : undefined}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            setOpen(true)
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={onKeyDown}
+          placeholder="Search manga & manhua…"
+          className={cn(
+            'rounded-full border border-black/10 bg-black/[0.03] py-2 pl-9 pr-4 text-sm text-zinc-900 outline-none transition-all duration-200 placeholder:text-zinc-400 focus:border-flame-500/50 focus:bg-white focus:shadow-lg focus:shadow-flame-500/10 dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus:bg-night-800',
+            fullWidth ? 'w-full focus:w-full' : 'w-52 focus:w-64',
+          )}
+        />
+      </div>
+
+      {showDrop ? (
+        <ul
+          id="nav-search-results"
+          role="listbox"
+          className="absolute left-0 right-0 top-full z-50 mt-2 max-h-[min(60vh,26rem)] overflow-y-auto rounded-2xl border border-black/10 bg-white p-1.5 shadow-2xl shadow-black/20 dark:border-white/10 dark:bg-night-800"
+        >
+          {busy ? (
+            <li className="flex items-center gap-2 px-3 py-3 text-sm text-zinc-500">
+              <Loader2 className="h-4 w-4 animate-spin" /> Searching…
+            </li>
+          ) : results.length === 0 ? (
+            <li className="px-3 py-3 text-sm text-zinc-500">No titles match “{trimmed}”</li>
+          ) : (
+            results.map((t, i) => (
+              <li
+                key={t.id}
+                ref={(el) => {
+                  itemRefs.current[i] = el
+                }}
+                role="option"
+                aria-selected={i === active}
+              >
+                <button
+                  type="button"
+                  onClick={() => pickTitle(t)}
+                  onMouseEnter={() => setActive(i)}
+                  className={cn(
+                    'flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors',
+                    i === active && 'bg-black/5 dark:bg-white/10',
+                  )}
+                >
+                  <img src={t.coverUrl} alt="" loading="lazy" className="h-12 w-9 shrink-0 rounded-md object-cover" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-zinc-900 dark:text-white">{t.title}</span>
+                    <span className="block text-xs text-zinc-500">
+                      {t.type}
+                      {t.chapterCount ? ` · ${t.chapterCount} chapters` : ''}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            ))
+          )}
+          <li>
+            <button
+              type="button"
+              onClick={goSearch}
+              className="mt-1 flex w-full items-center gap-2 rounded-xl border-t border-black/5 px-2 py-2.5 text-sm font-semibold text-flame-500 hover:bg-flame-500/5 dark:border-white/5 dark:text-flame-400"
+            >
+              <Search className="h-4 w-4" /> See all results for “{trimmed}”
+            </button>
+          </li>
+        </ul>
+      ) : null}
+    </form>
+  )
+}

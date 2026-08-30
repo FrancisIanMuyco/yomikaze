@@ -13,9 +13,10 @@ import {
   X,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { Link, NavLink, useLocation } from 'react-router-dom'
 
 import { cn } from '@/lib/utils'
+import { NavSearchAutocomplete } from '@/components/search/NavSearchAutocomplete'
 import type { Theme } from '@/hooks/useTheme'
 
 function Logo() {
@@ -78,21 +79,14 @@ const bottomTabs = [
 ]
 
 export function Navbar({ theme, toggleTheme }: { theme: Theme; toggleTheme: () => void }) {
-  const navigate = useNavigate()
   const location = useLocation()
-  const [query, setQuery] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
 
   useEffect(() => {
     setMenuOpen(false)
+    setSearchOpen(false)
   }, [location.pathname, location.search])
-
-  const submitSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    const q = query.trim()
-    navigate(q ? `/search?q=${encodeURIComponent(q)}` : '/search')
-    setQuery('')
-  }
 
   return (
     <>
@@ -104,28 +98,13 @@ export function Navbar({ theme, toggleTheme }: { theme: Theme; toggleTheme: () =
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Desktop search */}
-            <form onSubmit={submitSearch} role="search" className="hidden md:block">
-              <label className="sr-only" htmlFor="nav-search">
-                Search titles
-              </label>
-              <div className="relative group">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400 transition-colors group-focus-within:text-flame-400" />
-                <input
-                  id="nav-search"
-                  type="search"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search manga & manhua…"
-                  className="w-52 rounded-full border border-black/10 bg-black/[0.03] py-2 pl-9 pr-4 text-sm text-zinc-900 outline-none transition-all duration-200 placeholder:text-zinc-400 focus:w-64 focus:border-flame-500/50 focus:bg-white focus:shadow-lg focus:shadow-flame-500/10 dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus:bg-night-800"
-                />
-              </div>
-            </form>
+            {/* Desktop search — live autocomplete dropdown */}
+            <NavSearchAutocomplete className="hidden md:block" />
 
-            {/* Mobile search */}
+            {/* Mobile search — expands a full-width autocomplete overlay */}
             <button
               type="button"
-              onClick={() => navigate('/search')}
+              onClick={() => setSearchOpen(true)}
               className="rounded-lg p-2 text-zinc-600 transition-colors hover:bg-black/5 hover:text-zinc-900 md:hidden dark:text-zinc-400 dark:hover:bg-white/10 dark:hover:text-white"
               aria-label="Search"
             >
@@ -143,6 +122,21 @@ export function Navbar({ theme, toggleTheme }: { theme: Theme; toggleTheme: () =
           </div>
         </div>
       </header>
+
+      {/* Mobile search overlay — full-width autocomplete */}
+      {searchOpen ? (
+        <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="Search">
+          <button
+            type="button"
+            onClick={() => setSearchOpen(false)}
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            aria-label="Close search"
+          />
+          <div className="relative mx-auto mt-4 w-[calc(100%-2rem)]">
+            <NavSearchAutocomplete fullWidth autoFocus onDone={() => setSearchOpen(false)} />
+          </div>
+        </div>
+      ) : null}
 
       {/* Mobile bottom tab bar */}
       <nav
