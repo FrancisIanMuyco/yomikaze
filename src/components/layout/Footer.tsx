@@ -76,7 +76,10 @@ export function Footer() {
             project — all titles remain the property of their respective authors and publishers.
           </p>
           <p className="mt-3 text-xs text-zinc-500">
-            © {new Date().getFullYear()} YOMIKAZE — Read. Discover. Escape.
+            © {new Date().getFullYear()} YOMIKAZE — Read. Discover. Escape.{' '}
+            <span className="ml-1 select-all rounded bg-black/5 px-1 py-0.5 font-mono text-[10px] text-zinc-400 dark:bg-white/10 dark:text-zinc-500">
+              v{__APP_VERSION__}
+            </span>
           </p>
         </div>
       </div>

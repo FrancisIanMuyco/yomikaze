@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process'
 import { copyFileSync, existsSync, readFileSync } from 'node:fs'
 import { join, sep } from 'node:path'
 import { fileURLToPath, URL } from 'node:url'
@@ -131,6 +132,11 @@ const BASE = process.env.VITE_BASE_PATH || '/'
 
 export default defineConfig({
   base: BASE,
+  // Build-time build stamp (git short sha) so stale-service-worker UI can be
+  // identified: visible in the footer and injected as __APP_VERSION__.
+  define: {
+    __APP_VERSION__: JSON.stringify(execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim()),
+  },
   plugins: [
     react(),
     tailwindcss(),
