@@ -1,8 +1,6 @@
 import { Link } from 'react-router-dom'
 
 import { provider } from '@/providers/ProviderFactory'
-import { usePresence } from '@/presence/PresenceContext'
-import { formatNumber } from '@/lib/utils'
 
 const explore = [
   { to: '/', label: 'Home' },
@@ -18,8 +16,6 @@ const library = [
 ]
 
 export function Footer() {
-  const { viewers, monthlyReads } = usePresence()
-
   return (
     <footer className="mt-16 border-t border-black/5 bg-white pb-20 lg:pb-0 dark:border-white/5 dark:bg-night-950">
       <div className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
@@ -85,16 +81,6 @@ export function Footer() {
               v{__APP_VERSION__}
             </span>
           </p>
-          {viewers != null ? (
-            <p className="mt-2 flex items-center gap-1.5 text-xs text-zinc-500" data-live-stats>
-              <span className="relative flex h-2 w-2" aria-hidden="true">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-jade-500 opacity-60" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-jade-500" />
-              </span>
-              {viewers} reading now
-              {monthlyReads != null ? ` · ${formatNumber(monthlyReads)} reads this month` : ''}
-            </p>
-          ) : null}
         </div>
       </div>
     </footer>

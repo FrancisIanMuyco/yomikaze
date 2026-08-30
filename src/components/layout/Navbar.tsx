@@ -17,6 +17,7 @@ import { Link, NavLink, useLocation } from 'react-router-dom'
 
 import { cn } from '@/lib/utils'
 import { NavSearchAutocomplete } from '@/components/search/NavSearchAutocomplete'
+import { LiveStrip } from '@/components/layout/LiveStrip'
 import { PresenceBadge } from '@/components/layout/PresenceBadge'
 import type { Theme } from '@/hooks/useTheme'
 
@@ -91,6 +92,9 @@ export function Navbar({ theme, toggleTheme }: { theme: Theme; toggleTheme: () =
 
   return (
     <>
+      {/* Live reader strip — always at the top */}
+      <LiveStrip />
+
       <header className="sticky top-0 z-40 border-b border-black/5 glass-subtle dark:border-white/5">
         <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-8">
