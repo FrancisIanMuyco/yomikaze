@@ -30,6 +30,19 @@ const POPULAR_GENRES = [
   'Sci-Fi',
 ]
 
+// Recently imported manga, newest first. Kept in code so the row is stable and
+// intentional — flip forward whenever a new batch lands in the library.
+const NEW_TO_YOMIKAZE = [
+  'Naruto',
+  'One Piece',
+  'Hunter x Hunter',
+  'One Punch-Man',
+  'Tenchura! Tensei Shitara Slime Datta Ken',
+  'My Isekai Life: I Gained a Second Character Class and Became the Strongest Sage in the World!',
+  'A Savage Proposal',
+  'Hero Organization',
+]
+
 function GenreRail() {
   return (
     <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
@@ -60,7 +73,7 @@ function TitleGrid({ titles, className }: { titles: Title[]; className?: string 
 
 export function HomePage() {
   const { history } = useHistory()
-  const { resolve: resolveTitle } = useLibraryIndex()
+  const { index, resolve: resolveTitle } = useLibraryIndex()
   const [trending, setTrending] = useState<Title[] | null>(null)
   const [popular, setPopular] = useState<Title[] | null>(null)
   const [latest, setLatest] = useState<Title[] | null>(null)
@@ -154,6 +167,17 @@ export function HomePage() {
     [trending],
   )
 
+  const newTitles = useMemo(() => {
+    const byTitle = new Map<string, Title>()
+    for (const t of index.values()) byTitle.set(normalizeId(t.title), t)
+    const out: Title[] = []
+    for (const name of NEW_TO_YOMIKAZE) {
+      const t = byTitle.get(normalizeId(name))
+      if (t) out.push(t)
+    }
+    return out
+  }, [index])
+
   return (
     <div className="space-y-12">
       {/* ------------------------------ Hero ------------------------------ */}
@@ -164,6 +188,24 @@ export function HomePage() {
       ) : (
         <HeroCarousel slides={heroSlides} />
       )}
+
+      {/* ------------------------------ New to Yomikaze ------------------------------ */}
+      {newTitles.length > 0 ? (
+        <Reveal>
+          <section>
+            <SectionHeader
+              title="New to Yomikaze"
+              kanji="新着"
+              action={
+                <Link to="/manga" className="text-sm font-semibold text-flame-500 hover:text-flame-400">
+                  View all
+                </Link>
+              }
+            />
+            <TitleGrid titles={newTitles} />
+          </section>
+        </Reveal>
+      ) : null}
 
       {/* -------------------------- Continue reading -------------------------- */}
       {continueReading.length > 0 ? (

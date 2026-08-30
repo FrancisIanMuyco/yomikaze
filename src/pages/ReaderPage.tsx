@@ -45,6 +45,7 @@ import {
 } from '@/lib/offline'
 import { cn, normalizeId, readLocalJson, writeLocalJson } from '@/lib/utils'
 import { provider } from '@/providers/ProviderFactory'
+import { usePresence } from '@/presence/PresenceContext'
 import type { Chapter, ChapterPage, Title } from '@/types'
 
 type ReaderMode = 'paged' | 'vertical'
@@ -208,6 +209,7 @@ export function ReaderPage() {
   const navigate = useNavigate()
   const { saveProgress, progress } = useReadingProgress()
   const { recordHistory } = useHistory()
+  const { reportRead } = usePresence()
 
   const [title, setTitle] = useState<Title | null>(null)
   const [chapters, setChapters] = useState<Chapter[]>([])
@@ -406,6 +408,7 @@ export function ReaderPage() {
   const chapterIndex = sortedChapters.findIndex((c) => c.id === chapterId)
   const prevChapter = chapterIndex > 0 ? sortedChapters[chapterIndex - 1] : null
   const nextChapter = chapterIndex >= 0 && chapterIndex < sortedChapters.length - 1 ? sortedChapters[chapterIndex + 1] : null
+  const atLastPage = currentPage >= pages.length - 1
 
   const goToChapter = useCallback(
     (c: Chapter) => {
@@ -418,6 +421,11 @@ export function ReaderPage() {
 
   /* ------------------------- progress + history ------------------------ */
   const progressPct = pages.length > 0 ? (currentPage + 1) / pages.length : 0
+
+  // Anonymous "reads" beacon — fires once per chapter opened (per session).
+  useEffect(() => {
+    if (status === 'ready' && chapter) reportRead(chapter.id)
+  }, [status, chapter, reportRead])
 
   useEffect(() => {
     if (status !== 'ready' || pages.length === 0 || !chapter || !title) return
@@ -553,18 +561,36 @@ export function ReaderPage() {
       } else if (e.key === 'ArrowRight' || e.key === ' ') {
         e.preventDefault()
         if (mode === 'vertical') {
-          scrollRef.current?.scrollBy({ top: scrollRef.current.clientHeight * 0.85 })
+          const scroller = scrollRef.current
+          const nearBottom =
+            scroller && scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 60
+          if (nearBottom && nextChapter) {
+            goToChapter(nextChapter)
+          } else {
+            scroller?.scrollBy({ top: scroller?.clientHeight * 0.85 })
+          }
         } else if (mode === 'paged') {
           // Scroll tall fit-width pages first; only advance at the bottom.
           const scroller = pagedScrollRef.current
           const nearBottom = scroller && scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 60
-          if (scroller && !nearBottom && e.key === ' ') {
+          if (atLastPage) {
+            if (nearBottom && nextChapter) {
+              goToChapter(nextChapter)
+            } else {
+              scroller?.scrollBy({ top: scroller?.clientHeight * 0.85 })
+            }
+          } else if (scroller && !nearBottom && e.key === ' ') {
             scroller.scrollBy({ top: scroller.clientHeight * 0.85 })
           } else {
             nextPage()
           }
         } else {
-          nextPage()
+          // End of the last page → auto-advance into the next chapter.
+          if (atLastPage && nextChapter) {
+            goToChapter(nextChapter)
+          } else {
+            nextPage()
+          }
         }
       } else if (e.key === 'PageDown') {
         e.preventDefault()
@@ -584,7 +610,7 @@ export function ReaderPage() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [prevPage, nextPage, mode, drawerOpen, showShortcuts])
+  }, [prevPage, nextPage, mode, drawerOpen, showShortcuts, nextChapter, goToChapter, atLastPage])
 
   /* ------------------------------ share ------------------------------ */
   const handleShare = useCallback(async () => {
@@ -743,7 +769,6 @@ export function ReaderPage() {
   }
 
   const atFirstPage = currentPage === 0
-  const atLastPage = currentPage >= pages.length - 1
 
   return (
     <div

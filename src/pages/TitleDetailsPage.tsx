@@ -367,7 +367,7 @@ export function TitleDetailsPage() {
               <div>
                 <dt className="text-xs uppercase tracking-wider text-zinc-500">Year</dt>
                 <dd className="mt-0.5 flex items-center gap-1 font-bold">
-                  <Calendar className="h-4 w-4 text-zinc-400" />
+                  <Calendar className="h-4 w-4 text-zinc-500" />
                   {title.year}
                 </dd>
               </div>
@@ -376,7 +376,7 @@ export function TitleDetailsPage() {
               <div>
                 <dt className="text-xs uppercase tracking-wider text-zinc-500">Chapters</dt>
                 <dd className="mt-0.5 flex items-center gap-1 font-bold">
-                  <BookOpen className="h-4 w-4 text-zinc-400" />
+                  <BookOpen className="h-4 w-4 text-zinc-500" />
                   {title.chapterCount}
                 </dd>
               </div>
@@ -385,7 +385,7 @@ export function TitleDetailsPage() {
               <div>
                 <dt className="text-xs uppercase tracking-wider text-zinc-500">Author</dt>
                 <dd className="mt-0.5 flex items-center gap-1 font-bold">
-                  <User className="h-4 w-4 text-zinc-400" />
+                  <User className="h-4 w-4 text-zinc-500" />
                   {title.author}
                 </dd>
               </div>

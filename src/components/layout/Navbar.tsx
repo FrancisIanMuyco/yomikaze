@@ -17,6 +17,7 @@ import { Link, NavLink, useLocation } from 'react-router-dom'
 
 import { cn } from '@/lib/utils'
 import { NavSearchAutocomplete } from '@/components/search/NavSearchAutocomplete'
+import { PresenceBadge } from '@/components/layout/PresenceBadge'
 import type { Theme } from '@/hooks/useTheme'
 
 function Logo() {
@@ -98,6 +99,9 @@ export function Navbar({ theme, toggleTheme }: { theme: Theme; toggleTheme: () =
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Live readers pill (updates every ~60s) */}
+            <PresenceBadge />
+
             {/* Desktop search — live autocomplete dropdown */}
             <NavSearchAutocomplete className="hidden md:block" />
 

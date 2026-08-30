@@ -15,7 +15,7 @@ export function NotFoundPage() {
           404
         </h1>
         <p className="text-lg font-semibold text-zinc-700 dark:text-zinc-300">Page Not Found</p>
-        <p className="mx-auto max-w-md text-sm text-zinc-500">
+        <p className="mx-auto max-w-md text-sm text-zinc-600">
           The page you're looking for drifted into the void. Let's get you back to solid ground.
         </p>
       </div>

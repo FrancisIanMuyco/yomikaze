@@ -82,7 +82,7 @@ export function HistoryPage() {
                     {entry.chapterTitle ? ` — ${entry.chapterTitle}` : ''} · Page {entry.pageNumber} of{' '}
                     {entry.totalPages}
                   </p>
-                  <p className="mt-0.5 text-[11px] text-zinc-400">Last read {formatRelativeTime(entry.timestamp)}</p>
+                  <p className="mt-0.5 text-[11px] text-zinc-500">Last read {formatRelativeTime(entry.timestamp)}</p>
                   <div className="mt-2 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
                     <div className="h-full rounded-full bg-flame-500" style={{ width: `${pct}%` }} />
                   </div>

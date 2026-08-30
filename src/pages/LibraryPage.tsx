@@ -154,7 +154,7 @@ export function LibraryPage({ kind }: { kind: 'MANGA' | 'MANHUA' }) {
 
       {/* Search */}
       <div className="relative">
-        <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400" />
+        <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-500" />
         <input
           type="search"
           value={searchInput}
@@ -200,7 +200,7 @@ export function LibraryPage({ kind }: { kind: 'MANGA' | 'MANHUA' }) {
                 </option>
               ))}
             </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
           </div>
         </div>
       </div>

@@ -117,7 +117,12 @@ export function HeroCarousel({ slides }: Props) {
           transition: smooth ? 'transform 900ms cubic-bezier(0.22, 1, 0.36, 1)' : 'none',
         }}
       >
-        {extended.map((t, i) => (
+        {extended.map((t, i) => {
+          // Titles without real banner art get a designed "cover mode": a soft
+          // blurred backdrop + an upright portrait panel instead of a stretched
+          // cover — keeps every slide looking intentional, not accidental.
+          const hasBanner = Boolean(t.bannerUrl)
+          return (
           <div
             key={`${t.id}-${i}`}
             className={cn('relative w-full shrink-0', i !== idx && 'pointer-events-none opacity-0 transition-opacity duration-500')}
@@ -125,14 +130,25 @@ export function HeroCarousel({ slides }: Props) {
           >
             {/* Background */}
             <div className="absolute inset-0">
-              <CoverImage
-                src={t.bannerUrl ?? t.coverUrl}
-                alt=""
-                eager
-                aspectClassName="aspect-auto"
-                className="h-full w-full"
-                imgClassName="ken-burns object-cover"
-              />
+              {hasBanner ? (
+                <CoverImage
+                  src={t.bannerUrl}
+                  alt=""
+                  eager
+                  aspectClassName="aspect-auto"
+                  className="h-full w-full"
+                  imgClassName="ken-burns object-cover"
+                />
+              ) : (
+                <CoverImage
+                  src={t.coverUrl}
+                  alt=""
+                  eager
+                  aspectClassName="aspect-auto"
+                  className="absolute -inset-12 h-[calc(100%+6rem)] w-[calc(100%+6rem)]"
+                  imgClassName="ken-burns object-cover blur-2xl scale-110 opacity-60"
+                />
+              )}
               <div className="absolute inset-0 bg-gradient-to-r from-night-950/95 via-night-950/70 to-night-950/20 dark:from-night-950/95 dark:via-night-950/70 dark:to-night-950/20" />
               <div className="absolute inset-0 bg-gradient-to-t from-night-950/95 via-transparent to-night-950/40" />
             </div>
@@ -144,6 +160,17 @@ export function HeroCarousel({ slides }: Props) {
             >
               漫画
             </span>
+
+            {/* Portrait panel for banner-less slides */}
+            {!hasBanner ? (
+              <div className="pointer-events-none absolute right-8 top-1/2 hidden w-40 -translate-y-1/2 rotate-3 rounded-xl shadow-2xl shadow-black/70 transition-transform duration-500 group-hover:rotate-0 lg:block xl:w-48">
+                <div className="overflow-hidden rounded-xl">
+                  <CoverImage src={t.coverUrl} alt="" eager aspectClassName="aspect-[2/3]" />
+                </div>
+                <div className="pointer-events-none absolute inset-0 rounded-xl ring-1 ring-inset ring-white/25" aria-hidden="true" />
+                <div className="absolute inset-x-0 bottom-0 h-16 rounded-b-xl bg-gradient-to-t from-black/70 to-transparent" aria-hidden="true" />
+              </div>
+            ) : null}
 
             <div
               key={t.id}
@@ -195,7 +222,8 @@ export function HeroCarousel({ slides }: Props) {
               </div>
             </div>
           </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* Trending chip */}
