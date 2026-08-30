@@ -25,6 +25,11 @@ export function NavSearchAutocomplete({ className, fullWidth = false, autoFocus 
   const [results, setResults] = useState<Title[]>([])
   const [active, setActive] = useState(-1)
   const itemRefs = useRef<Array<HTMLLIElement | null>>([])
+  // Remembers that the dropdown was open when the page started scrolling, so it
+  // can auto-reopen once the page is back at the top (see scroll effect below).
+  const pendingRef = useRef(false)
+  const scrollTimer = useRef<number | null>(null)
+  const inputRef = useRef<HTMLInputElement | null>(null)
   const debounced = useDebouncedValue(query, 350)
 
   useEffect(() => {
@@ -56,26 +61,43 @@ export function NavSearchAutocomplete({ className, fullWidth = false, autoFocus 
   }, [debounced])
 
   useEffect(() => {
-    if (!open) return
-    // Page scroll moves nothing (navbar is sticky), but a floating suggestion
-    // list over the content is noisy — close it once the PAGE scrolls. The
-    // dropdown's own internal scroll (target = the <ul>) keeps working.
+    // While the PAGE scrolls, hide the floating suggestions; when the user
+    // scrolls back to the top the dropdown reopens on its own (query kept).
+    // The dropdown's own internal scroll (target = the <ul>) is ignored.
     const onScroll = (e: Event) => {
       const t = e.target
-      if (t === document || t === window || t === document.documentElement || t === document.body) close()
+      if (!(t === document || t === window || t === document.documentElement || t === document.body)) return
+      if (!open && !pendingRef.current) return
+      if (open) pendingRef.current = true
+      setOpen(false)
+      if (scrollTimer.current) window.clearTimeout(scrollTimer.current)
+      scrollTimer.current = window.setTimeout(() => {
+        if (pendingRef.current && query.trim() && window.scrollY <= 4) {
+          pendingRef.current = false
+          setOpen(true)
+          inputRef.current?.focus({ preventScroll: true })
+        }
+      }, 250)
     }
     window.addEventListener('scroll', onScroll, { capture: true, passive: true })
-    return () => window.removeEventListener('scroll', onScroll, { capture: true })
+    return () => {
+      window.removeEventListener('scroll', onScroll, { capture: true })
+      if (scrollTimer.current) window.clearTimeout(scrollTimer.current)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+  }, [open, query])
 
   useEffect(() => {
     if (active >= 0) itemRefs.current[active]?.scrollIntoView({ block: 'nearest' })
   }, [active])
 
-  const close = () => setOpen(false)
+  const close = () => {
+    pendingRef.current = false
+    setOpen(false)
+  }
 
   const finish = () => {
+    pendingRef.current = false
     setQuery('')
     close()
     onDone?.()
@@ -134,16 +156,21 @@ export function NavSearchAutocomplete({ className, fullWidth = false, autoFocus 
         <input
           type="search"
           value={query}
+          ref={inputRef}
           autoFocus={autoFocus}
           aria-label="Search titles"
           aria-autocomplete="list"
           aria-expanded={showDrop}
           aria-controls={showDrop ? 'nav-search-results' : undefined}
           onChange={(e) => {
+            pendingRef.current = false
             setQuery(e.target.value)
             setOpen(true)
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => {
+            pendingRef.current = false
+            setOpen(true)
+          }}
           onKeyDown={onKeyDown}
           placeholder="Search manga & manhua…"
           className={cn(
