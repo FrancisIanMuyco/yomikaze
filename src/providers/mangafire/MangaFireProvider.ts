@@ -28,69 +28,77 @@ export class MangaFireProvider implements ContentProvider {
   readonly label = 'MangaFire (scraped)'
 
   private items: RawScrapedItem[] = []
-  private chapters: ScrapedChapter[] = []
   private titlesById = new Map<string, Title>()
   private chaptersByTitleId = new Map<string, Chapter[]>()
+  private rawChaptersByTitleId = new Map<string, ScrapedChapter[]>()
   private loadPromise: Promise<void> | null = null
-  /** Signature of the last indexed scraped.json — used to skip no-op reloads. */
-  private lastSignature = ''
+  /** Per-title lazy chapter loads (dedupe concurrent fetches). */
+  private titleLoads = new Map<string, Promise<void>>()
+  private titleLoaded = new Set<string>()
+  /** Signature of the last indexed index — used to skip no-op reloads. */
+  private lastItemsSignature = ''
 
   constructor(items: RawScrapedItem[] = [], chapters: ScrapedChapter[] = []) {
     if (items.length || chapters.length) {
       this.items = items
-      this.chapters = chapters
       this.index()
+      if (chapters.length) {
+        const bySeries = new Map<string, ScrapedChapter[]>()
+        for (const ch of chapters) {
+          const arr = bySeries.get(ch.series_id) || []
+          arr.push(ch)
+          bySeries.set(ch.series_id, arr)
+        }
+        for (const [seriesId, chs] of bySeries) {
+          const titleId = `mangafire:${seriesId}`
+          this.rawChaptersByTitleId.set(titleId, chs)
+          this.chaptersByTitleId.set(titleId, this.mapChapters(titleId, chs))
+        }
+      }
     } else {
-      // No data passed in — load the scraped mangafire.to export (public/scraped.json).
+      // No data passed in — load the lightweight titles.json index; chapter
+      // files (public/titles/<source_id>.json) are lazy-loaded per title so a
+      // browsing session never downloads the full export.
       this.loadPromise = this.loadData()
-      // Auto-refresh: pick up newly imported titles/chapters without a manual
-      // page reload (the JUKU engine rewrites public/scraped.json on import).
-      const pollMs = Number(import.meta.env.VITE_SCRAPED_REFRESH_MS ?? 60_000)
+      // Auto-refresh the index only (titles list is small — never the full
+      // page export) so newly imported titles pick up without a reload.
+      const pollMs = Number(import.meta.env.VITE_SCRAPED_REFRESH_MS ?? 180_000)
       if (pollMs > 0) {
         window.setInterval(() => void this.refresh(), pollMs)
       }
     }
   }
 
-  private static signature(items: RawScrapedItem[], chapters: ScrapedChapter[]): string {
+  private static itemsSignature(items: RawScrapedItem[]): string {
     const first = items[0]
-    const last = chapters[chapters.length - 1]
-    return [
-      items.length,
-      chapters.length,
-      first?.source_id ?? '',
-      first?.title ?? '',
-      last?.chapter_id ?? '',
-    ].join('|')
+    const last = items[items.length - 1]
+    return [items.length, first?.source_id ?? '', first?.title ?? '', last?.source_id ?? ''].join('|')
   }
 
   private async loadData() {
     try {
-      const res = await fetch(`${import.meta.env.BASE_URL}scraped.json?t=${Date.now()}`)
+      const res = await fetch(`${import.meta.env.BASE_URL}titles.json`)
       if (!res.ok) return
       const data = await res.json()
-      this.items = data.items || [data]
-      this.chapters = data.chapters || []
-      this.lastSignature = MangaFireProvider.signature(this.items, this.chapters)
+      this.items = data.items || []
+      this.lastItemsSignature = MangaFireProvider.itemsSignature(this.items)
       this.index()
     } catch {
       // no scraped data available yet
     }
   }
 
-  /** Poll scraped.json and re-index only when the library actually changed. */
+  /** Poll the lightweight index and re-index only when the title set changed. */
   private async refresh() {
     try {
-      const res = await fetch(`${import.meta.env.BASE_URL}scraped.json?t=${Date.now()}`)
+      const res = await fetch(`${import.meta.env.BASE_URL}titles.json?t=${Date.now()}`)
       if (!res.ok) return
       const data = await res.json()
-      const items: RawScrapedItem[] = data.items || [data]
-      const chapters: ScrapedChapter[] = data.chapters || []
-      const sig = MangaFireProvider.signature(items, chapters)
-      if (sig === this.lastSignature) return
+      const items: RawScrapedItem[] = data.items || []
+      const sig = MangaFireProvider.itemsSignature(items)
+      if (sig === this.lastItemsSignature) return
       this.items = items
-      this.chapters = chapters
-      this.lastSignature = sig
+      this.lastItemsSignature = sig
       this.index()
     } catch {
       // keep the current data on transient errors
@@ -128,34 +136,66 @@ export class MangaFireProvider implements ContentProvider {
       }
       this.titlesById.set(title.id, title)
     }
+  }
 
-    const chaptersBySeries = new Map<string, ScrapedChapter[]>()
-    for (const ch of this.chapters) {
-      const arr = chaptersBySeries.get(ch.series_id) || []
-      arr.push(ch)
-      chaptersBySeries.set(ch.series_id, arr)
-    }
+  /** Lazy-load one title's chapters from public/titles/<source_id>.json. */
+  private async loadTitleChapters(titleId: string): Promise<void> {
+    if (this.titleLoaded.has(titleId)) return
+    const pending = this.titleLoads.get(titleId)
+    if (pending) return pending
+    const sourceId = titleId.replace(/^mangafire:/, '')
+    const p = (async () => {
+      try {
+        const res = await fetch(`${import.meta.env.BASE_URL}titles/${sourceId}.json`)
+        if (!res.ok) return
+        const data = await res.json()
+        const chs: ScrapedChapter[] = data.chapters || []
+        this.rawChaptersByTitleId.set(titleId, chs)
+        this.chaptersByTitleId.set(titleId, this.mapChapters(titleId, chs))
+        this.titleLoaded.add(titleId)
+      } catch {
+        // title chapters unavailable — leave the title metadata-only
+      }
+    })()
+    this.titleLoads.set(titleId, p)
+    await p
+  }
 
-    for (const [seriesId, chs] of chaptersBySeries) {
-      chs.sort((a, b) => a.number - b.number)
-      const titleId = `mangafire:${seriesId}`
-      const chapters: Chapter[] = chs.map((ch, idx) => ({
-        id: ch.chapter_id,
-        providerId: 'mangafire',
-        titleId,
-        chapterNumber: ch.number,
-        title: ch.title || `Chapter ${ch.number}`,
-        publishedAt: undefined,
-        updatedAt: Date.now() - (chs.length - idx) * 86400000,
-        // Chapters with no scraped pages (metadata-only import) are flagged so
-        // the UI shows the "Metadata only" badge and the reader offers a
-        // "Open on MangaFire" fallback instead of a blank screen.
-        available: ch.pages.length > 0,
-        pageCount: ch.pages.length,
-        officialUrl: ch.url,
-      }))
-      this.chaptersByTitleId.set(titleId, chapters)
+  private mapChapters(titleId: string, scrapedChapters: ScrapedChapter[]): Chapter[] {
+    const sorted = [...scrapedChapters].sort((a, b) => a.number - b.number)
+    return sorted.map((ch, idx) => ({
+      id: ch.chapter_id,
+      providerId: 'mangafire',
+      titleId,
+      chapterNumber: ch.number,
+      title: ch.title || `Chapter ${ch.number}`,
+      publishedAt: undefined,
+      updatedAt: Date.now() - (sorted.length - idx) * 86400000,
+      // Chapters with no scraped pages (metadata-only import) are flagged so
+      // the UI shows the "Metadata only" badge and the reader offers a
+      // "Open on MangaFire" fallback instead of a blank screen.
+      available: ch.pages.length > 0,
+      pageCount: ch.pages.length,
+      officialUrl: ch.url,
+    }))
+  }
+
+  /** Titles a chapter id might belong to (chapter ids usually prefix source_id). */
+  private candidateSourceIds(chapterId: string): string[] {
+    const dash = chapterId.replaceAll('_', '-')
+    const out: string[] = []
+    for (const item of this.items) {
+      const sid = item.source_id
+      if (
+        chapterId === sid ||
+        chapterId.startsWith(`${sid}-`) ||
+        chapterId.startsWith(`${sid.replaceAll(' ', '-')}-`) ||
+        dash.startsWith(`${sid.replaceAll(' ', '-')}-`)
+      ) {
+        out.push(sid)
+      }
     }
+    return out
   }
 
   async getTitles(): Promise<Title[]> {
@@ -179,6 +219,7 @@ export class MangaFireProvider implements ContentProvider {
 
   async getChapters(titleId: string): Promise<Chapter[]> {
     await this.ensureLoaded()
+    await this.loadTitleChapters(titleId)
     return this.chaptersByTitleId.get(titleId) || []
   }
 
@@ -188,26 +229,44 @@ export class MangaFireProvider implements ContentProvider {
       const found = chs.find(c => c.id === chapterId)
       if (found) return found
     }
+    for (const sourceId of this.candidateSourceIds(chapterId)) {
+      const title = this.titlesById.get(`mangafire:${sourceId}`)
+      if (!title) continue
+      await this.loadTitleChapters(title.id)
+      const found = this.chaptersByTitleId.get(title.id)?.find(c => c.id === chapterId)
+      if (found) return found
+    }
     return null
   }
 
   async getChapterPages(chapterId: string): Promise<ChapterPage[]> {
     await this.ensureLoaded()
-    for (const ch of this.chapters) {
-      if (ch.chapter_id === chapterId) {
-        return ch.pages.map((url, idx) => ({
-          id: `${chapterId}:p${idx + 1}`,
-          chapterId,
-          pageNumber: idx + 1,
-          imageUrl: proxyImageUrl(url) || url,
-          width: undefined,
-          height: undefined,
-          alt: `Page ${idx + 1}`,
-          source: 'mangafire',
-        }))
-      }
+    for (const [titleId, chs] of this.rawChaptersByTitleId) {
+      await this.loadTitleChapters(titleId)
+      const ch = chs.find(c => c.chapter_id === chapterId)
+      if (ch) return this.toPages(chapterId, ch)
+    }
+    for (const sourceId of this.candidateSourceIds(chapterId)) {
+      const title = this.titlesById.get(`mangafire:${sourceId}`)
+      if (!title) continue
+      await this.loadTitleChapters(title.id)
+      const ch = this.rawChaptersByTitleId.get(title.id)?.find(c => c.chapter_id === chapterId)
+      if (ch) return this.toPages(chapterId, ch)
     }
     return []
+  }
+
+  private toPages(chapterId: string, ch: ScrapedChapter): ChapterPage[] {
+    return ch.pages.map((url, idx) => ({
+      id: `${chapterId}:p${idx + 1}`,
+      chapterId,
+      pageNumber: idx + 1,
+      imageUrl: proxyImageUrl(url) || url,
+      width: undefined,
+      height: undefined,
+      alt: `Page ${idx + 1}`,
+      source: 'mangafire',
+    }))
   }
 
   async getGenres(): Promise<string[]> {
