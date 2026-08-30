@@ -140,7 +140,10 @@ export default defineConfig({
     //   readable even offline, and repeat visits load instantly.
     VitePWA({
       registerType: 'autoUpdate',
-      injectRegister: 'auto',
+      // The inline registration template can't pass `updateViaCache`, which is
+      // the fix for the "always need Ctrl+Shift+R" stale-shell problem — so the
+      // app registers the SW itself in src/main.tsx with `updateViaCache: 'none'`.
+      injectRegister: null,
       includeAssets: ['favicon.svg', 'pwa-192.png', 'pwa-512.png'],
       manifest: {
         name: 'YOMIKAZE — Read. Discover. Escape.',
@@ -158,6 +161,8 @@ export default defineConfig({
         ],
       },
       workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
         navigateFallback: 'index.html',
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
