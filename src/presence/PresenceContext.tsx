@@ -97,13 +97,16 @@ export function PresenceProvider({ children }: { children: ReactNode }) {
   // Initial presence ping, then keep the session alive + poll stats.
   useEffect(() => {
     beacon('view')
-    refresh()
+    // Give the beacon a beat to land before the first stats read so a lone
+    // visitor sees 1 ("you") rather than a temporary 0 due to the race.
+    const boot = window.setTimeout(refresh, 1200)
     const hb = window.setInterval(() => {
       beacon('view')
       refresh()
     }, HEARTBEAT_MS)
     const stats = window.setInterval(refresh, STATS_MS)
     return () => {
+      window.clearTimeout(boot)
       window.clearInterval(hb)
       window.clearInterval(stats)
     }
