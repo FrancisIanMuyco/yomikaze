@@ -1,6 +1,6 @@
 import { Loader2, Search } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 
 import { useDebouncedValue } from '@/hooks/useDebouncedValue'
 import { cn } from '@/lib/utils'
@@ -19,6 +19,7 @@ interface Props {
 /** Navbar search with an instant suggestion dropdown (type-ahead, like Google). */
 export function NavSearchAutocomplete({ className, fullWidth = false, autoFocus = false, onDone }: Props) {
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -67,9 +68,12 @@ export function NavSearchAutocomplete({ className, fullWidth = false, autoFocus 
     const onScroll = (e: Event) => {
       const t = e.target
       if (!(t === document || t === window || t === document.documentElement || t === document.body)) return
-      if (!open && !pendingRef.current) return
-      if (open) pendingRef.current = true
-      setOpen(false)
+      if (open) {
+        pendingRef.current = true
+        setOpen(false)
+      } else if (!pendingRef.current) {
+        return
+      }
       if (scrollTimer.current) window.clearTimeout(scrollTimer.current)
       scrollTimer.current = window.setTimeout(() => {
         if (pendingRef.current && query.trim() && window.scrollY <= 4) {
@@ -87,19 +91,30 @@ export function NavSearchAutocomplete({ className, fullWidth = false, autoFocus 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, query])
 
+  // Clicking away after blurring the input (e.g. picking a nav link) must drop
+  // any scroll-reopen memory — otherwise the dropdown could pop back on the
+  // next page once scrolled to the top.
+  useEffect(() => {
+    pendingRef.current = false
+    setOpen(false)
+  }, [pathname])
+
   useEffect(() => {
     if (active >= 0) itemRefs.current[active]?.scrollIntoView({ block: 'nearest' })
   }, [active])
 
-  const close = () => {
+  const close = () => setOpen(false)
+
+  // Hard dismiss (Escape / form submit / finished navigation): forget the
+  // scroll-reopen memory too.
+  const dismiss = () => {
     pendingRef.current = false
     setOpen(false)
   }
 
   const finish = () => {
-    pendingRef.current = false
+    dismiss()
     setQuery('')
-    close()
     onDone?.()
   }
 
@@ -116,7 +131,7 @@ export function NavSearchAutocomplete({ className, fullWidth = false, autoFocus 
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
-      close()
+      dismiss()
       return
     }
     if (!open || results.length === 0) return
@@ -148,7 +163,13 @@ export function NavSearchAutocomplete({ className, fullWidth = false, autoFocus 
         goSearch()
       }}
       onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) close()
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          // A blur on touch often happens WHILE scrolling starts (before any
+          // scroll event). Keep the scroll-reopen memory alive in that case so
+          // the dropdown still comes back when the page returns to the top.
+          if (showDrop) pendingRef.current = true
+          close()
+        }
       }}
     >
       <div className="relative group">
