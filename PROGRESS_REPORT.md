@@ -4,7 +4,7 @@
 > session, ug unsay sunod buhaton — para dali ra kaayo mag-update ug magpadayon.
 > Update this file after every working session.
 
-Last updated: **2026-08-17** · Status: ✅ **LIVE** on GitHub Pages + **Vercel deploy** (image proxy automatic)
+Last updated: **2026-08-30** · Status: ✅ **LIVE** on GitHub Pages + **Vercel** (image proxy automatic)
 
 ---
 
@@ -14,12 +14,16 @@ Last updated: **2026-08-17** · Status: ✅ **LIVE** on GitHub Pages + **Vercel 
 |---|---|
 | 🌐 **Live site** | ✅ **https://francisianmuyco.github.io/yomikaze/** (GitHub Pages) + **https://yomikaze.vercel.app** (Vercel, image proxy automatic) |
 | **Git repo** | ✅ `github.com/FrancisIanMuyco/yomikaze` (public) |
-| `npm run build` | ✅ **~2–15s** (gikan sa >5min nga hang — na-fix) |
+| `npm run build` | ✅ **~3–15s** (gikan sa >5min nga hang — na-fix) |
 | `npm run typecheck` | ✅ green (app + juku) |
-| Content provider | `mangadex` default (real metadata + real pages) |
-| Scraped store | `public/scraped.json` — **69 titles, 5,866 chapters** (mangafire 20 + asurascans 49) |
+| Content provider | `mangafire` — MangaFireProvider nag-load sa `public/scraped.json` (MangaFire + AsuraScans) |
+| Scraped store | `public/scraped.json` — **177 titles, 8,839 chapters, 294,984 pages** (mangafire + asura) |
 | Local page cache | `manga-cache/` (34k images, gitignored) |
-| Design | Dark cinematic theme, polished this session |
+| Design | Dark cinematic theme + animated hero carousel |
+| Live search | ✅ Navbar type-ahead dropdown (auto-closes on scroll, muling lumalabas pag top) |
+| Downloads | ✅ Offline chapter downloads (SW cache) + real **ZIP/PDF** file exports |
+| Trending hero | ✅ Auto-sliding "Trending Now" carousel (premium infinite loop) |
+| Build version | ✅ `v<git-sha>` stamp sa footer + console (dali ma-identify ang stale SW shell) |
 | Reader | Paged/vertical, fit width/height, fullscreen, keyboard, auto-hide controls, page-turn animations |
 
 ---
@@ -168,9 +172,7 @@ public/                scraped.json + favicon + demo assets (keep small!)
    ang page mismo nag-ingon nga i-run ang scraper directly kung wala ang middleware.
 3. **Production deploy:** ang `/mfcdn/` proxy ug `/manga/` middleware kay dev/preview-only.
    Para production, kinahanglan i-serve sa hosting server (o CDN) ang mga images.
-4. **No git repo** sa `YOMIKAZE/` karon (walay `.git`) — `git status` returns fatal.
-   Kung gusto og version control, i-run `git init` (suggested next step).
-5. **JUKU state:** last successful scrape sa mangadex/mangafire kay 2026-08-14; naay
+4. **JUKU state:** last successful scrape sa mangadex/mangafire kay 2026-08-14; naay
    mga "getDetails returned nothing" errors sa mangafire (ro8ro) — kung mag-import,
    check `juku/state.json` ug `juku/logs/juku.log`.
 
@@ -179,19 +181,18 @@ public/                scraped.json + favicon + demo assets (keep small!)
 ## 6 · Next steps (roadmap suggestions)
 
 **Priority (functional):**
-- [ ] `git init` + first commit (para naay backup/history sa mga changes)
-- [ ] Production deploy setup (Netlify/Vercel/Cloudflare Pages + static serving sa images)
-- [ ] ScrapePage backend middleware (para molihok ang paste-URL nga feature sa production)
+- [ ] **APK wrapper** — Android WebView app (UMA ka sa YOMIKAZE nga standalone app). Build
+      via GitHub Actions (walay Android SDK sa laptop); signed APK artifact + instructions.
+- [ ] **Cloudflare API token rotation** — na-expose ang token sa miaging session; kinahanglan
+      ilisan sa dashboard ug i-save sa `~/.config/phcorner-site/.env` (ACTION from user).
 
 **Design/UX (pwede ra sunod):**
-- [ ] Scroll-reveal animations (IntersectionObserver) para sa long pages
-- [ ] Skeleton shimmer para sa chapter list
-- [ ] Loading bar sa top (pag-navigate)
-- [ ] Reading statistics (total chapters read, time spent)
+- [ ] Trending carousel tunings: dagan (5s/8s), slide count, or fade transition
+- [ ] Reader top-bar auto-hide: buttons unreachable samtang hidden (kailangan mouse move
+      una para mo-wake) — check kung dapat i-adjust
 
 **Content:**
 - [ ] Regular JUKU import (latest updates) aron fresh ang library
-- [ ] Re-run downloader para ma-local ang pages (offline-capable)
 
 ---
 
@@ -211,6 +212,10 @@ public/                scraped.json + favicon + demo assets (keep small!)
 | 2026-08-30 | **OFFLINE DOWNLOADS** — `src/lib/offline.ts`: download manager nga naga-fetch sa tanang pages pinaagi sa /api/mfcdn proxy ug nag-store sa SW's `mfcdn-pages-v1` cache (CacheFirst → offline reading). ReaderPage: Download button sa top bar (per chapter). TitleDetailsPage: per-chapter download buttons + "Download all (N)" nga naay progress/stop, downloaded count ug indicators. SW cache bumped to 20k entries / 60 days. Na-verify e2e sa dev (99-page chapter = 9.2MB cached). Commit `1bb197e`. |
 
 | 2026-08-30 | **REAL FILE DOWNLOADS (ZIP/PDF)** — giduol ni user: ayaw ra sira ang offline-reading (SW cache), apan dapat may "tinuod" nga files ang mga Images — na-organize nga .zip o .pdf. `src/lib/exportFiles.ts`: parallel fetch mismo nga pages pinaagi sa /api/mfcdn (CORS `*` na, instant kung SW cache na), magic-byte sniff (jpg/png/webp), webp→jpeg canvas fallback para sa PDF, gamit ang jszip + pdf-lib. UI: Reader top bar → "Save as ZIP/PDF" (per chapter, live progress); Title page → per-row ZIP/PDF buttons + "All chapters (ZIP)" nga naga-build og usa ka organized archive (`Title/Ch N/pNNN.jpg`). Na-verify e2e: 99-page chapter → valid .zip (99 entries) ug valid .pdf (`%PDF-`). Commit `cf2f30e`. |
+| 2026-08-30 | **NEXT-LEVEL PWA: SW auto-update FIX** — gi-stale pa ang service worker (kinahanglan pa CTRL+SHIFT+R kada update): `vite.config.ts` → `injectRegister: null` + `skipWaiting`/`clientsClaim`; `src/main.tsx` → manual registration nga `updateViaCache: 'none'`. Kanus-a na-deploy ang bag-o, usa ra ka normal F5 (o automatic) — **never hard-refresh again**. Commit `3b6aab5`. |
+| 2026-08-30 | **LIVE SEARCH DROPDOWN** — `src/components/search/NavSearchAutocomplete.tsx`: type-ahead (350ms debounce), cover + title + type + chapter count, keyboard nav (↑↓ Enter Esc), "See all results". `Navbar` → desktop autocomplete + mobile full-width overlay (🔍). Commit `c04534a`. |
+| 2026-08-30 | **SEARCH UX TWEAKS** — lapad nga search bar (`w-72` → `w-[22rem]` sa XL); dropdown mo-close ra **pag mag-scroll** ug **muling lumalabas pag balik sa top** (Google-style; fade memory sa typing/focus/Escape/navigation); touch-blur fix (kailangan sa phones); **build version stamp** `v<git-sha>` sa footer + console. Commits `5c10628`, `c0e1f47`, `6a92fda`, `41b5850`, `d7f98cd`. |
+| 2026-08-30 | **TRENDING NOW HERO CAROUSEL** — premium auto-sliding hero: seamless infinite loop (autoplay 6s, 900ms slide), glass arrows, dots, slide counter `01/06`, autoplay progress bar, hover-pause, swipe support, `prefers-reduced-motion` respected. Chapters lazy-load per active slide → "Start Reading" mubo og sakto. Commit `a373fd5` (na-verify live, 0 console errors). |
 | 2026-08-16 | **Vercel deploy** — vercel.json config, 580 proxies pushed to MFCDN_PROXIES, deploy-vercel.py forceNew fix, image proxy verified live |
 | 2026-08-14 | Build hang fix (manga-cache move + middleware), design polish (animations, hero, cards, reader auto-hide + page-turn), ReaderPage ASI fix, PROGRESS_REPORT.md |
 | 2026-08-14 | **Deployed to GitHub Pages** (live: francisianmuyco.github.io/yomikaze) — repo created, Actions workflow, base path + 404 fallback, verified live |
