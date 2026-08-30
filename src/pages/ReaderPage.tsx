@@ -1,4 +1,5 @@
 import {
+  Archive,
   ArrowLeft,
   ArrowLeftCircle,
   ArrowRight,
@@ -8,6 +9,7 @@ import {
   ChevronUp,
   Download,
   Expand,
+  FileText,
   ExternalLink,
   Eye,
   EyeOff,
@@ -30,6 +32,7 @@ import { useHistory } from '@/hooks/useHistory'
 import { useReadingProgress } from '@/hooks/useReadingProgress'
 import { useSeo } from '@/hooks/useSeo'
 import { getErrorMessage } from '@/lib/errors'
+import { downloadChapterPdf, downloadChapterZip } from '@/lib/exportFiles'
 import {
   cancelDownload,
   downloadChapter,
@@ -227,6 +230,36 @@ export function ReaderPage() {
   const [dlPhase, setDlPhase] = useState<DownloadPhase>(() => phaseFor(chapterId))
   const [dlProgress, setDlProgress] = useState<{ done: number; total: number } | null>(null)
   const [dlError, setDlError] = useState<string | null>(null)
+
+  /* --------------------------- file exports (zip / pdf) --------------------------- */
+  const [expKind, setExpKind] = useState<'zip' | 'pdf' | null>(null)
+  const [expProgress, setExpProgress] = useState<{ done: number; total: number } | null>(null)
+  const [expError, setExpError] = useState<string | null>(null)
+
+  const runExport = useCallback(
+    async (kind: 'zip' | 'pdf') => {
+      if (pages.length === 0 || expKind) return
+      setExpError(null)
+      setExpKind(kind)
+      setExpProgress({ done: 0, total: pages.length })
+      const base = `${title?.title ?? 'chapter'} - Ch ${chapter?.chapterNumber}`
+      try {
+        if (kind === 'zip') {
+          await downloadChapterZip(pages, base, (done, total) => setExpProgress({ done, total }))
+        } else {
+          await downloadChapterPdf(pages, base, (done, total) => setExpProgress({ done, total }))
+        }
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') {
+          setExpError(typeof err === 'string' ? err : ((err as Error)?.message ?? 'Export failed'))
+        }
+      } finally {
+        setExpKind(null)
+        setExpProgress(null)
+      }
+    },
+    [chapter, expKind, pages, title],
+  )
 
   useEffect(() => {
     setDlPhase(phaseFor(chapterId))
@@ -798,6 +831,46 @@ export function ReaderPage() {
                   : dlSupported
                     ? 'Download'
                     : 'No offline'}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => void runExport('zip')}
+            disabled={expKind !== null || pages.length === 0}
+            className={cn(
+              'flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm font-bold transition-colors disabled:opacity-35',
+              expKind === 'zip' ? 'text-flame-400' : 'text-zinc-300 hover:bg-white/5 hover:text-white',
+            )}
+            aria-label="Save this chapter as a ZIP file"
+            title={expError ?? undefined}
+          >
+            {expKind === 'zip' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Archive className="h-4 w-4" />
+            )}
+            <span className="hidden md:inline">
+              {expKind === 'zip' && expProgress ? `${expProgress.done}/${expProgress.total}` : 'ZIP'}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => void runExport('pdf')}
+            disabled={expKind !== null || pages.length === 0}
+            className={cn(
+              'flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm font-bold transition-colors disabled:opacity-35',
+              expKind === 'pdf' ? 'text-flame-400' : 'text-zinc-300 hover:bg-white/5 hover:text-white',
+            )}
+            aria-label="Save this chapter as a PDF file"
+            title={expError ?? undefined}
+          >
+            {expKind === 'pdf' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <FileText className="h-4 w-4" />
+            )}
+            <span className="hidden md:inline">
+              {expKind === 'pdf' && expProgress ? `${expProgress.done}/${expProgress.total}` : 'PDF'}
             </span>
           </button>
           <button

@@ -1,4 +1,5 @@
 import {
+  Archive,
   ArrowDownAZ,
   ArrowUpAZ,
   BookOpen,
@@ -6,6 +7,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   Download,
+  FileText,
   Heart,
   Loader2,
   Play,
@@ -24,6 +26,7 @@ import { useHistory } from '@/hooks/useHistory'
 import { useReadingProgress } from '@/hooks/useReadingProgress'
 import { useSeo } from '@/hooks/useSeo'
 import { getErrorMessage } from '@/lib/errors'
+import { downloadChapterPdf, downloadChapterZip, downloadTitleZip } from '@/lib/exportFiles'
 import {
   cancelAllForTitle,
   cancelDownload,
@@ -52,6 +55,16 @@ export function TitleDetailsPage() {
   const [dlTick, setDlTick] = useState(0)
   const [dlAll, setDlAll] = useState<{ done: number; total: number } | null>(null)
   const [dlMessage, setDlMessage] = useState<string | null>(null)
+
+  /* --------------------------- file exports (zip / pdf) --------------------------- */
+  const [exp, setExp] = useState<{
+    scope: 'chapter' | 'all'
+    id?: string
+    kind: 'zip' | 'pdf'
+    done: number
+    total: number
+  } | null>(null)
+  const [expMessage, setExpMessage] = useState<string | null>(null)
 
   useEffect(() => subscribeDownloads(() => setDlTick((t) => t + 1)), [])
 
@@ -129,6 +142,53 @@ export function TitleDetailsPage() {
         }
       })
   }, [title, dlAll, downloadableChapters])
+
+  const startChapterExport = useCallback(
+    async (chapter: Chapter, kind: 'zip' | 'pdf') => {
+      if ((chapter.pageCount ?? 0) === 0 || exp) return
+      setExpMessage(null)
+      try {
+        const pages = await provider.getChapterPages(chapter.id)
+        if (pages.length === 0) return
+        setExp({ scope: 'chapter', id: chapter.id, kind, done: 0, total: pages.length })
+        const base = `${title?.title ?? 'chapter'} - Ch ${chapter.chapterNumber}`
+        const onProgress = (done: number, total: number) =>
+          setExp((e) => (e ? { ...e, done, total } : e))
+        if (kind === 'zip') {
+          await downloadChapterZip(pages, base, onProgress)
+        } else {
+          await downloadChapterPdf(pages, base, onProgress)
+        }
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') {
+          setExpMessage(typeof err === 'string' ? err : ((err as Error)?.message ?? 'Export failed'))
+        }
+      } finally {
+        setExp(null)
+      }
+    },
+    [exp, title],
+  )
+
+  const startAllExport = useCallback(async () => {
+    if (!title || exp || downloadableChapters.length === 0) return
+    setExpMessage(null)
+    setExp({ scope: 'all', kind: 'zip', done: 0, total: downloadableChapters.length })
+    try {
+      await downloadTitleZip(
+        downloadableChapters,
+        (ch) => provider.getChapterPages(ch.id),
+        title.title,
+        (done, total) => setExp((e) => (e ? { ...e, done, total } : e)),
+      )
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        setExpMessage(typeof err === 'string' ? err : ((err as Error)?.message ?? 'Export failed'))
+      }
+    } finally {
+      setExp(null)
+    }
+  }, [exp, title, downloadableChapters])
 
   const { isFavorite, toggleFavorite } = useFavorites()
   const { progress } = useReadingProgress()
@@ -437,6 +497,10 @@ export function TitleDetailsPage() {
               <span className="hidden max-w-[220px] truncate text-xs text-rose-500 sm:inline dark:text-rose-400">
                 {dlMessage}
               </span>
+            ) : expMessage ? (
+              <span className="hidden max-w-[220px] truncate text-xs text-rose-500 sm:inline dark:text-rose-400">
+                {expMessage}
+              </span>
             ) : null}
             <button
               type="button"
@@ -466,6 +530,22 @@ export function TitleDetailsPage() {
               ) : (
                 `Download all${downloadableChapters.length ? ` (${downloadableChapters.length})` : ''}`
               )}
+            </button>
+            <button
+              type="button"
+              onClick={() => void startAllExport()}
+              disabled={!!exp || downloadableChapters.length === 0}
+              className="inline-flex items-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-zinc-600 transition-colors hover:border-flame-500/50 hover:text-flame-500 disabled:pointer-events-none disabled:opacity-40 dark:border-white/10 dark:bg-night-850 dark:text-zinc-300 dark:hover:text-flame-400"
+              aria-label="Download every chapter as one organized ZIP file"
+            >
+              {exp?.scope === 'all' ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Archive className="h-4 w-4" />
+              )}
+              {exp?.scope === 'all'
+                ? `ZIP ${exp.done}/${exp.total}`
+                : `All chapters (ZIP)`}
             </button>
             <button
               type="button"
@@ -547,36 +627,66 @@ export function TitleDetailsPage() {
                       <Play className="h-4 w-4 text-zinc-300 transition-all group-hover:-translate-x-0.5 group-hover:text-flame-500" />
                     </span>
                   </Link>
-                  <button
-                    type="button"
-                    onClick={() => void startChapterDownload(chapter)}
-                    disabled={!isSupported() || !hasPages}
-                    className="mr-4 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-black/5 hover:text-white disabled:pointer-events-none disabled:opacity-30 dark:hover:bg-white/5"
-                    aria-label={
-                      dlPhase === 'downloading'
-                        ? `Cancel download of Chapter ${chapter.chapterNumber}`
-                        : dlPhase === 'downloaded'
-                          ? `Remove download of Chapter ${chapter.chapterNumber}`
-                          : `Download Chapter ${chapter.chapterNumber}`
-                    }
-                    title={
-                      dlPhase === 'downloading'
-                        ? 'Downloading — tap to cancel'
-                        : dlPhase === 'downloaded'
-                          ? 'Downloaded — tap to remove'
-                          : hasPages
-                            ? 'Download for offline reading'
-                            : 'No readable pages'
-                    }
-                  >
-                    {dlPhase === 'downloading' ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-flame-400" />
-                    ) : dlPhase === 'downloaded' ? (
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
-                    ) : (
-                      <Download className="h-4 w-4" />
-                    )}
-                  </button>
+                  <span className="flex shrink-0 items-center gap-1 pr-4">
+                    <button
+                      type="button"
+                      onClick={() => void startChapterExport(chapter, 'zip')}
+                      disabled={!!exp || !hasPages}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-black/5 hover:text-flame-500 disabled:pointer-events-none disabled:opacity-30 dark:hover:bg-white/5 dark:hover:text-flame-400"
+                      aria-label={`Save Chapter ${chapter.chapterNumber} as a ZIP file`}
+                      title={hasPages ? 'Save as ZIP file' : 'No readable pages'}
+                    >
+                      {exp?.scope === 'chapter' && exp.id === chapter.id && exp.kind === 'zip' ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-flame-400" />
+                      ) : (
+                        <Archive className="h-4 w-4" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void startChapterExport(chapter, 'pdf')}
+                      disabled={!!exp || !hasPages}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-black/5 hover:text-flame-500 disabled:pointer-events-none disabled:opacity-30 dark:hover:bg-white/5 dark:hover:text-flame-400"
+                      aria-label={`Save Chapter ${chapter.chapterNumber} as a PDF file`}
+                      title={hasPages ? 'Save as PDF file' : 'No readable pages'}
+                    >
+                      {exp?.scope === 'chapter' && exp.id === chapter.id && exp.kind === 'pdf' ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-flame-400" />
+                      ) : (
+                        <FileText className="h-4 w-4" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void startChapterDownload(chapter)}
+                      disabled={!isSupported() || !hasPages}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-black/5 hover:text-white disabled:pointer-events-none disabled:opacity-30 dark:hover:bg-white/5"
+                      aria-label={
+                        dlPhase === 'downloading'
+                          ? `Cancel download of Chapter ${chapter.chapterNumber}`
+                          : dlPhase === 'downloaded'
+                            ? `Remove download of Chapter ${chapter.chapterNumber}`
+                            : `Download Chapter ${chapter.chapterNumber}`
+                      }
+                      title={
+                        dlPhase === 'downloading'
+                          ? 'Downloading — tap to cancel'
+                          : dlPhase === 'downloaded'
+                            ? 'Downloaded — tap to remove'
+                            : hasPages
+                              ? 'Download for offline reading'
+                              : 'No readable pages'
+                      }
+                    >
+                      {dlPhase === 'downloading' ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-flame-400" />
+                      ) : dlPhase === 'downloaded' ? (
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+                      ) : (
+                        <Download className="h-4 w-4" />
+                      )}
+                    </button>
+                  </span>
                 </li>
               )
             })}
