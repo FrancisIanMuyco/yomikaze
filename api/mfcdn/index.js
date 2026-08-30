@@ -11,6 +11,11 @@
  * MFCDN_PROXIES environment variable (newline-separated
  * http://user:pass@ip:port entries, refreshed from the scraper's checker).
  *
+ * Speed: ALL attempts (direct + up to 8 proxies) fire in PARALLEL and the
+ * first one to return a usable image wins — a single dead proxy can no longer
+ * stall the whole request for its 25s timeout. The last working proxy is
+ * remembered per warm instance so repeat requests go straight to a winner.
+ *
  * Note: Vercel's global `fetch` ignores the undici `agent` option, so we use
  * axios + https-proxy-agent (both already project dependencies) to guarantee
  * the request actually tunnels through the proxy.
@@ -25,6 +30,8 @@ import { HttpsProxyAgent } from 'https-proxy-agent'
 const MFCDN_REFERER = 'https://mangafire.to/'
 const MFCDN_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+const ATTEMPT_TIMEOUT = 8000 // ms per attempt — fail fast on dead proxies
+const MAX_ATTEMPTS = 8
 
 const PROXIES = (process.env.MFCDN_PROXIES || '')
   .split('\n')
@@ -38,61 +45,58 @@ const HEADERS = {
   'Accept-Language': 'en-US,en;q=0.9',
 }
 
-async function fetchDirect(targetUrl, timeout = 20000) {
+// Remembered across requests on a warm instance: try this proxy first.
+let lastGoodProxy = null
+
+const BLOCKED = (code) =>
+  code === 403 || code === 407 || code === 408 || code === 429 || code >= 500
+
+function toResult(res) {
+  if (BLOCKED(res.status)) return null // blocked/transient → not a usable answer
+  return {
+    status: res.status,
+    data: Buffer.from(res.data),
+    contentType: res.headers['content-type'] || 'image/jpeg',
+  }
+}
+
+async function fetchVia(targetUrl, agent, timeout = ATTEMPT_TIMEOUT) {
   try {
     const res = await axios.get(targetUrl, {
       headers: HEADERS,
+      httpsAgent: agent,
       proxy: false,
       responseType: 'arraybuffer',
       timeout,
       maxRedirects: 5,
       validateStatus: () => true,
     })
-    if (res.status === 403 || res.status === 407 || res.status === 408 || res.status === 429 || res.status >= 500) {
-      return null // blocked / transient — let the proxy path handle it
-    }
-    return {
-      status: res.status,
-      data: Buffer.from(res.data),
-      contentType: res.headers['content-type'] || 'image/jpeg',
-    }
+    return toResult(res)
   } catch {
     return null
   }
 }
 
-async function fetchViaProxies(targetUrl, attempts = 8) {
-  const order = [...PROXIES].sort(() => Math.random() - 0.5).slice(0, attempts)
-  let lastErr
-  for (const proxy of order) {
-    try {
-      const agent = new HttpsProxyAgent(proxy)
-      const res = await axios.get(targetUrl, {
-        headers: HEADERS,
-        httpsAgent: agent,
-        proxy: false, // tunnel via the agent; don't let axios use env proxies
-        responseType: 'arraybuffer',
-        timeout: 25000,
-        maxRedirects: 5,
-        validateStatus: () => true, // handle statuses ourselves below
-      })
-      // 403 = CDN blocked this proxy's IP; 407 = stale proxy credentials;
-      // 408/429/5xx = transient failures → try the next proxy.
-      // Anything else (200, 404, …) is a real result to return.
-      if (res.status === 403 || res.status === 407 || res.status === 408 || res.status === 429 || res.status >= 500) {
-        lastErr = new Error(`status ${res.status}`)
-        continue
-      }
-      return {
-        status: res.status,
-        data: Buffer.from(res.data),
-        contentType: res.headers['content-type'] || 'image/jpeg',
-      }
-    } catch (e) {
-      lastErr = e
+/** Return the FIRST non-null result across all in-flight attempts. */
+function firstResult(attempts) {
+  return new Promise((resolve, reject) => {
+    let pending = attempts.length
+    let settled = false
+    for (const fn of attempts) {
+      Promise.resolve()
+        .then(fn)
+        .then((v) => {
+          if (!settled && v) {
+            settled = true
+            resolve(v)
+          }
+        })
+        .catch(() => {})
+        .then(() => {
+          if (!settled && --pending === 0) reject(new Error('all attempts failed'))
+        })
     }
-  }
-  throw lastErr
+  })
 }
 
 export default async function handler(req, res) {
@@ -110,18 +114,21 @@ export default async function handler(req, res) {
     return res.status(400).end('Bad host')
   }
 
+  const targetStr = upstreamUrl.toString()
   try {
-    // Try Vercel's own egress first (fastest path, no proxy dependency). The
-    // mangafire CDN sometimes allows it directly (referer-only hotlink check);
-    // if the IP is blocked it falls through to the proxy list.
-    let upstream = await fetchDirect(upstreamUrl.toString())
-    if (!upstream) {
-      if (PROXIES.length) {
-        upstream = await fetchViaProxies(upstreamUrl.toString())
-      } else {
-        throw new Error('direct blocked and no proxies configured')
-      }
+    const attempts = [() => fetchVia(targetStr, null)] // Vercel's own egress, no agent
+    const pool = lastGoodProxy ? [lastGoodProxy, ...PROXIES.filter((p) => p !== lastGoodProxy)] : PROXIES
+    for (const proxy of pool.slice(0, MAX_ATTEMPTS)) {
+      const agent = new HttpsProxyAgent(proxy)
+      attempts.push(() =>
+        fetchVia(targetStr, agent).then((res) => {
+          if (res) lastGoodProxy = proxy
+          return res
+        })
+      )
     }
+
+    const upstream = await firstResult(attempts)
     res.setHeader('Content-Type', upstream.contentType)
     res.setHeader('Cache-Control', 'public, max-age=86400')
     res.setHeader('Access-Control-Allow-Origin', '*')
