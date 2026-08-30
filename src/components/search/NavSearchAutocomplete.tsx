@@ -56,6 +56,20 @@ export function NavSearchAutocomplete({ className, fullWidth = false, autoFocus 
   }, [debounced])
 
   useEffect(() => {
+    if (!open) return
+    // Page scroll moves nothing (navbar is sticky), but a floating suggestion
+    // list over the content is noisy — close it once the PAGE scrolls. The
+    // dropdown's own internal scroll (target = the <ul>) keeps working.
+    const onScroll = (e: Event) => {
+      const t = e.target
+      if (t === document || t === window || t === document.documentElement || t === document.body) close()
+    }
+    window.addEventListener('scroll', onScroll, { capture: true, passive: true })
+    return () => window.removeEventListener('scroll', onScroll, { capture: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  useEffect(() => {
     if (active >= 0) itemRefs.current[active]?.scrollIntoView({ block: 'nearest' })
   }, [active])
 
