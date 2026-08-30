@@ -319,6 +319,19 @@ label,
   animation: page-turn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Hero carousel autoplay progress bar (duration set inline) */
+@keyframes hero-progress {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+.hero-progress {
+  animation: hero-progress linear infinite;
+}
+
 /* Hero content entrance — paired with .hero-stagger delays below */
 @keyframes hero-rise {
   from {

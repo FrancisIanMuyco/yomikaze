@@ -1,20 +1,19 @@
-import { ChevronRight, Clock3, Play, Star } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Clock3 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 
-import { StatusBadge, TypeBadge } from '@/components/ui/Badge'
 import { CoverImage } from '@/components/ui/CoverImage'
 import { normalizeId } from '@/lib/utils'
 import { EmptyState, ErrorState, SectionHeader } from '@/components/ui/States'
 import { SkeletonGrid, SkeletonHero } from '@/components/ui/Skeletons'
 import { Reveal } from '@/components/ui/Reveal'
 import { TitleCard } from '@/components/ui/TitleCard'
+import { HeroCarousel } from '@/components/home/HeroCarousel'
 import { useHistory } from '@/hooks/useHistory'
 import { useLibraryIndex } from '@/hooks/useLibraryIndex'
 import { getErrorMessage } from '@/lib/errors'
-import { formatNumber } from '@/lib/utils'
 import { provider } from '@/providers/ProviderFactory'
-import type { Chapter, Title } from '@/types'
+import type { Title } from '@/types'
 
 const POPULAR_GENRES = [
   'Action',
@@ -60,13 +59,11 @@ function TitleGrid({ titles, className }: { titles: Title[]; className?: string 
 }
 
 export function HomePage() {
-  const navigate = useNavigate()
   const { history } = useHistory()
   const { resolve: resolveTitle } = useLibraryIndex()
   const [trending, setTrending] = useState<Title[] | null>(null)
   const [popular, setPopular] = useState<Title[] | null>(null)
   const [latest, setLatest] = useState<Title[] | null>(null)
-  const [heroChapters, setHeroChapters] = useState<Chapter[]>([])
   const [error, setError] = useState<string | null>(null)
   const [retryKey, setRetryKey] = useState(0)
 
@@ -85,15 +82,6 @@ export function HomePage() {
         setTrending(t)
         setPopular(p)
         setLatest(l)
-        const heroCandidate = t.find((x) => x.bannerUrl) ?? t[0] ?? p[0] ?? null
-        if (heroCandidate) {
-          try {
-            const chapters = await provider.getChapters(heroCandidate.id)
-            if (alive) setHeroChapters(chapters)
-          } catch {
-            if (alive) setHeroChapters([])
-          }
-        }
       } catch (e) {
         if (alive) setError(getErrorMessage(e))
       }
@@ -103,19 +91,13 @@ export function HomePage() {
     }
   }, [retryKey])
 
-  const hero = useMemo(() => trending?.find((x) => x.bannerUrl) ?? trending?.[0] ?? popular?.[0] ?? null, [trending, popular])
-
-  const startReading = useCallback(() => {
-    if (!hero) return
-    const first = [...heroChapters]
-      .sort((a, b) => a.chapterNumber - b.chapterNumber)
-      .find((c) => c.available)
-    if (first) {
-      navigate(`/reader/${hero.id}/${first.id}`)
-    } else {
-      navigate(`/title/${hero.id}`)
-    }
-  }, [hero, heroChapters, navigate])
+  // Slides for the auto-playing hero carousel: prefer titles with real banners
+  // (premium look); fall back to the trending list, then popular.
+  const heroSlides = useMemo(() => {
+    const t = trending ?? []
+    const source = t.length ? (t.filter((x) => x.bannerUrl).length >= 2 ? t.filter((x) => x.bannerUrl) : t) : (popular ?? [])
+    return source.slice(0, 6)
+  }, [trending, popular])
 
   // Resolve stale snapshots against the live library, drop chapters that are
   // 100%% complete (nahuman na — naa ra sila sa History page), and dedupe by
@@ -177,81 +159,10 @@ export function HomePage() {
       {/* ------------------------------ Hero ------------------------------ */}
       {error ? (
         <ErrorState title="Could not load content" message={error} onRetry={() => setRetryKey((k) => k + 1)} />
-      ) : !hero ? (
+      ) : heroSlides.length === 0 ? (
         <SkeletonHero />
       ) : (
-        <section className="group relative overflow-hidden rounded-3xl border border-black/5 shadow-2xl shadow-black/30 dark:border-white/5">
-          {/* Background */}
-          <div className="absolute inset-0">
-            <CoverImage
-              src={hero.bannerUrl ?? hero.coverUrl}
-              alt=""
-              eager
-              aspectClassName="aspect-auto"
-              className="h-full w-full"
-              imgClassName="ken-burns object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-night-950/95 via-night-950/70 to-night-950/20 dark:from-night-950/95 dark:via-night-950/70 dark:to-night-950/20" />
-            <div className="absolute inset-0 bg-gradient-to-t from-night-950/95 via-transparent to-night-950/40" />
-          </div>
-
-          {/* Kanji watermark */}
-          <span
-            className="float pointer-events-none absolute -right-4 top-4 select-none font-display text-[9rem] font-black leading-none text-white/5 md:text-[13rem]"
-            aria-hidden="true"
-          >
-            漫画
-          </span>
-
-            <div className="hero-stagger relative flex min-h-[440px] flex-col justify-end gap-5 p-6 pb-8 md:min-h-[520px] md:p-10">
-              <div className="flex flex-wrap items-center gap-2">
-                <TypeBadge type={hero.type} className="!bg-black/50 text-white" />
-                <StatusBadge status={hero.status} className="!bg-black/50 text-white" />
-                <span className="flex items-center gap-1 text-sm font-bold text-gold-300">
-                  <Star className="h-4 w-4 fill-gold-400 text-gold-400" />
-                  {hero.rating !== undefined ? (hero.rating / 10).toFixed(1) : '—'}
-                  <span className="ml-1 text-xs font-medium text-zinc-400">· {formatNumber(hero.popularity)}</span>
-                </span>
-              </div>
-
-              <h1 className="max-w-2xl font-display text-4xl font-black leading-tight tracking-tight text-white drop-shadow-lg md:text-6xl">
-                {hero.title}
-              </h1>
-
-              <p className="line-clamp-3 max-w-xl text-sm leading-relaxed text-zinc-300 md:text-base">
-                {hero.description}
-              </p>
-
-              <div className="flex flex-wrap gap-2">
-                {hero.genres.slice(0, 5).map((genre) => (
-                  <span
-                    key={genre}
-                    className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-medium text-zinc-300 backdrop-blur-sm"
-                  >
-                    {genre}
-                  </span>
-                ))}
-              </div>
-
-              <div className="mt-2 flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={startReading}
-                  className="gradient-shift inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-flame-600 via-flame-500 to-rose-500 px-6 py-3 text-sm font-bold uppercase tracking-wider text-white shadow-lg shadow-flame-600/40 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-flame-500/50 btn-press"
-                >
-                  <Play className="h-4 w-4 fill-current" />
-                  Start Reading
-                </button>
-                <Link
-                  to={`/title/${hero.id}`}
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-6 py-3 text-sm font-bold uppercase tracking-wider text-white backdrop-blur-sm transition-all duration-200 hover:border-white/40 hover:bg-white/10 btn-press"
-                >
-                  View Details
-                  <ChevronRight className="h-4 w-4" />
-                </Link>
-              </div>
-            </div>
-        </section>
+        <HeroCarousel slides={heroSlides} />
       )}
 
       {/* -------------------------- Continue reading -------------------------- */}
