@@ -99,6 +99,22 @@ html:not(.dark) .skeleton {
   }
 }
 
+/* Top notice ticker — endless slide; safe transform-only animation */
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+.marquee-track {
+  animation: marquee 24s linear infinite;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
+  }
+}
+
 /* Reader page fade-in */
 @keyframes page-in {
   from {
