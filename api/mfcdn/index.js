@@ -10,6 +10,8 @@
  * (small US datacenters, which the CDN allows). The list is provided as the
  * MFCDN_PROXIES environment variable (newline-separated
  * http://user:pass@ip:port entries, refreshed from the scraper's checker).
+ * NOTE: env is read at module load — an MFCDN_PROXIES update requires a
+ * redeploy so cold instances pick up the new list.
  *
  * Speed: ALL attempts (direct + up to 8 proxies) fire in PARALLEL and the
  * first one to return a usable image wins — a single dead proxy can no longer
