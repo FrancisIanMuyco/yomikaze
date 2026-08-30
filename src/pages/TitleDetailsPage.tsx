@@ -3,13 +3,16 @@ import {
   ArrowUpAZ,
   BookOpen,
   Calendar,
+  CheckCircle2,
   ChevronLeft,
+  Download,
   Heart,
+  Loader2,
   Play,
   Star,
   User,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { RatingBadge, StatusBadge, TypeBadge } from '@/components/ui/Badge'
@@ -21,6 +24,17 @@ import { useHistory } from '@/hooks/useHistory'
 import { useReadingProgress } from '@/hooks/useReadingProgress'
 import { useSeo } from '@/hooks/useSeo'
 import { getErrorMessage } from '@/lib/errors'
+import {
+  cancelAllForTitle,
+  cancelDownload,
+  downloadChapter,
+  downloadTitleChapters,
+  isSupported,
+  persistStorage,
+  phaseFor,
+  removeDownload,
+  subscribeDownloads,
+} from '@/lib/offline'
 import { cn, formatDate, formatNumber, typeLabel } from '@/lib/utils'
 import { provider } from '@/providers/ProviderFactory'
 import type { Chapter, Title } from '@/types'
@@ -33,6 +47,88 @@ export function TitleDetailsPage() {
   const [error, setError] = useState<string | null>(null)
   const [descExpanded, setDescExpanded] = useState(false)
   const [chapterSortAsc, setChapterSortAsc] = useState(false)
+
+  /* --------------------------- offline downloads --------------------------- */
+  const [dlTick, setDlTick] = useState(0)
+  const [dlAll, setDlAll] = useState<{ done: number; total: number } | null>(null)
+  const [dlMessage, setDlMessage] = useState<string | null>(null)
+
+  useEffect(() => subscribeDownloads(() => setDlTick((t) => t + 1)), [])
+
+  const downloadedCount = useMemo(
+    () => chapters.filter((c) => phaseFor(c.id) === 'downloaded').length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [chapters, dlTick],
+  )
+
+  const downloadableChapters = useMemo(
+    () => chapters.filter((c) => c.available && (c.pageCount ?? 0) > 0),
+    [chapters],
+  )
+
+  const startChapterDownload = useCallback(
+    async (chapter: Chapter) => {
+      const phase = phaseFor(chapter.id)
+      if (phase === 'downloading') {
+        cancelDownload(chapter.id)
+        return
+      }
+      if (phase === 'downloaded') {
+        if (window.confirm('Remove this downloaded chapter?')) {
+          void removeDownload(chapter.id).catch(() => undefined)
+        }
+        return
+      }
+      if ((chapter.pageCount ?? 0) === 0) return
+      if (!isSupported()) {
+        setDlMessage('Offline downloads are not supported in this browser')
+        return
+      }
+      setDlMessage(null)
+      void persistStorage()
+      try {
+        const titleId = title?.id ?? ''
+        const chapterPages = await provider.getChapterPages(chapter.id)
+        await downloadChapter(chapter.id, chapterPages, {
+          titleId,
+          title: title?.title ?? chapter.title ?? '',
+          chapterLabel: chapter.title ?? `Chapter ${chapter.chapterNumber}`,
+        })
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') setDlMessage('Chapter download failed — check your connection')
+      }
+    },
+    [title],
+  )
+
+  const startAllDownload = useCallback(() => {
+    if (!title) return
+    if (dlAll) {
+      cancelAllForTitle(title.id)
+      return
+    }
+    if (downloadableChapters.length === 0) {
+      setDlMessage('No chapters with readable pages to download')
+      return
+    }
+    setDlMessage(null)
+    setDlAll({ done: 0, total: downloadableChapters.length })
+    void persistStorage()
+    downloadTitleChapters(
+      title,
+      downloadableChapters,
+      (ch) => provider.getChapterPages(ch.id),
+      (done, total) => setDlAll({ done, total }),
+      () => setDlAll(null),
+    )
+      .then(() => setDlAll(null))
+      .catch((err) => {
+        if ((err as Error).name !== 'AbortError') {
+          setDlAll(null)
+          setDlMessage('Download stopped — some chapters failed')
+        }
+      })
+  }, [title, dlAll, downloadableChapters])
 
   const { isFavorite, toggleFavorite } = useFavorites()
   const { progress } = useReadingProgress()
@@ -329,19 +425,58 @@ export function TitleDetailsPage() {
       {/* Chapters */}
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-4">
-          <h2 className="font-display text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+          <h2 className="flex items-center gap-2 font-display text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
             Chapters
-            <span className="ml-2 text-base font-medium text-zinc-500">({chapters.length})</span>
+            <span className="ml-2 text-base font-medium text-zinc-500">
+              ({chapters.length}
+              {downloadedCount > 0 ? ` · ${downloadedCount} saved` : ''})
+            </span>
           </h2>
-          <button
-            type="button"
-            onClick={() => setChapterSortAsc((a) => !a)}
-            className="inline-flex items-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-zinc-600 transition-colors hover:border-flame-500/50 hover:text-flame-500 dark:border-white/10 dark:bg-night-850 dark:text-zinc-300 dark:hover:text-flame-400"
-            aria-label={chapterSortAsc ? 'Sort chapters descending' : 'Sort chapters ascending'}
-          >
-            {chapterSortAsc ? <ArrowUpAZ className="h-4 w-4" /> : <ArrowDownAZ className="h-4 w-4" />}
-            {chapterSortAsc ? 'Oldest first' : 'Newest first'}
-          </button>
+          <div className="flex items-center gap-2">
+            {dlMessage ? (
+              <span className="hidden max-w-[220px] truncate text-xs text-rose-500 sm:inline dark:text-rose-400">
+                {dlMessage}
+              </span>
+            ) : null}
+            <button
+              type="button"
+              onClick={startAllDownload}
+              disabled={!isSupported() || downloadableChapters.length === 0}
+              className={cn(
+                'inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors disabled:pointer-events-none disabled:opacity-40',
+                dlAll
+                  ? 'border border-flame-500/40 bg-flame-500/10 text-flame-500 dark:text-flame-400'
+                  : downloadedCount > 0
+                    ? 'border border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                    : 'border border-black/10 bg-white text-zinc-600 hover:border-flame-500/50 hover:text-flame-500 dark:border-white/10 dark:bg-night-850 dark:text-zinc-300 dark:hover:text-flame-400',
+              )}
+              aria-label={dlAll ? 'Cancel download of all chapters' : 'Download all chapters for offline reading'}
+            >
+              {dlAll ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : downloadedCount > 0 ? (
+                <CheckCircle2 className="h-4 w-4" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              {dlAll ? (
+                `Stop ${dlAll.done}/${dlAll.total}`
+              ) : downloadedCount > 0 ? (
+                `Saved ${downloadedCount}`
+              ) : (
+                `Download all${downloadableChapters.length ? ` (${downloadableChapters.length})` : ''}`
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setChapterSortAsc((a) => !a)}
+              className="inline-flex items-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2 text-sm font-semibold text-zinc-600 transition-colors hover:border-flame-500/50 hover:text-flame-500 dark:border-white/10 dark:bg-night-850 dark:text-zinc-300 dark:hover:text-flame-400"
+              aria-label={chapterSortAsc ? 'Sort chapters descending' : 'Sort chapters ascending'}
+            >
+              {chapterSortAsc ? <ArrowUpAZ className="h-4 w-4" /> : <ArrowDownAZ className="h-4 w-4" />}
+              {chapterSortAsc ? 'Oldest first' : 'Newest first'}
+            </button>
+          </div>
         </div>
 
         {chapters.length === 0 ? (
@@ -356,11 +491,13 @@ export function TitleDetailsPage() {
             {sortedChapters.map((chapter) => {
               const isCurrent = myProgress?.chapterId === chapter.id
               const pct = isCurrent && myProgress ? Math.round(myProgress.progress * 100) : 0
+              const dlPhase = phaseFor(chapter.id)
+              const hasPages = (chapter.pageCount ?? 0) > 0
               return (
-                <li key={chapter.id}>
+                <li key={chapter.id} className="flex items-center">
                   <Link
                     to={`/reader/${title.id}/${chapter.id}`}
-                    className="group flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.03]"
+                    className="group flex min-w-0 flex-1 items-center gap-4 px-4 py-3.5 transition-colors hover:bg-black/[0.02] dark:hover:bg-white/[0.03]"
                     aria-label={`Read ${chapter.title ?? `Chapter ${chapter.chapterNumber}`}`}
                   >
                     <span
@@ -380,7 +517,7 @@ export function TitleDetailsPage() {
                       <span className="block text-xs text-zinc-500">
                         {chapter.available ? (
                           <>
-                            {chapter.pageCount} pages
+                            {hasPages ? `${chapter.pageCount} pages` : 'No readable pages'}
                             {chapter.publishedAt ? ` · ${formatDate(chapter.publishedAt)}` : ''}
                           </>
                         ) : (
@@ -390,6 +527,7 @@ export function TitleDetailsPage() {
                           </>
                         )}
                         {isCurrent ? ' · Reading' : ''}
+                        {dlPhase === 'downloaded' ? ' · Downloaded' : ''}
                       </span>
                     </span>
                     <span className="flex shrink-0 items-center gap-2">
@@ -409,6 +547,36 @@ export function TitleDetailsPage() {
                       <Play className="h-4 w-4 text-zinc-300 transition-all group-hover:-translate-x-0.5 group-hover:text-flame-500" />
                     </span>
                   </Link>
+                  <button
+                    type="button"
+                    onClick={() => void startChapterDownload(chapter)}
+                    disabled={!isSupported() || !hasPages}
+                    className="mr-4 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-black/5 hover:text-white disabled:pointer-events-none disabled:opacity-30 dark:hover:bg-white/5"
+                    aria-label={
+                      dlPhase === 'downloading'
+                        ? `Cancel download of Chapter ${chapter.chapterNumber}`
+                        : dlPhase === 'downloaded'
+                          ? `Remove download of Chapter ${chapter.chapterNumber}`
+                          : `Download Chapter ${chapter.chapterNumber}`
+                    }
+                    title={
+                      dlPhase === 'downloading'
+                        ? 'Downloading — tap to cancel'
+                        : dlPhase === 'downloaded'
+                          ? 'Downloaded — tap to remove'
+                          : hasPages
+                            ? 'Download for offline reading'
+                            : 'No readable pages'
+                    }
+                  >
+                    {dlPhase === 'downloading' ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-flame-400" />
+                    ) : dlPhase === 'downloaded' ? (
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+                    ) : (
+                      <Download className="h-4 w-4" />
+                    )}
+                  </button>
                 </li>
               )
             })}

@@ -168,7 +168,9 @@ export default defineConfig({
             handler: 'CacheFirst',
             options: {
               cacheName: 'mfcdn-pages-v1',
-              expiration: { maxEntries: 800, maxAgeSeconds: 60 * 60 * 24 * 30, purgeOnQuotaError: true },
+              // Generous limit: this cache doubles as the offline-download
+              // store (src/lib/offline.ts writes here too).
+              expiration: { maxEntries: 20000, maxAgeSeconds: 60 * 60 * 24 * 60, purgeOnQuotaError: true },
               cacheableResponse: { statuses: [0, 200] },
               rangeRequests: false,
             },

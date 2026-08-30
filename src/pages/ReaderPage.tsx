@@ -4,7 +4,9 @@ import {
   ArrowRight,
   ArrowRightCircle,
   BookOpen,
+  CheckCircle2,
   ChevronUp,
+  Download,
   Expand,
   ExternalLink,
   Eye,
@@ -12,6 +14,7 @@ import {
   HelpCircle,
   ImageOff,
   List,
+  Loader2,
   Maximize2,
   Minimize2,
   RefreshCw,
@@ -27,6 +30,16 @@ import { useHistory } from '@/hooks/useHistory'
 import { useReadingProgress } from '@/hooks/useReadingProgress'
 import { useSeo } from '@/hooks/useSeo'
 import { getErrorMessage } from '@/lib/errors'
+import {
+  cancelDownload,
+  downloadChapter,
+  isSupported,
+  persistStorage,
+  phaseFor,
+  removeDownload,
+  subscribeDownloads,
+  type DownloadPhase,
+} from '@/lib/offline'
 import { cn, normalizeId, readLocalJson, writeLocalJson } from '@/lib/utils'
 import { provider } from '@/providers/ProviderFactory'
 import type { Chapter, ChapterPage, Title } from '@/types'
@@ -209,6 +222,54 @@ export function ReaderPage() {
   const [fullscreen, setFullscreen] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState<'chapters' | 'settings' | null>(null)
   const [showShortcuts, setShowShortcuts] = useState(false)
+
+  /* --------------------------- offline download --------------------------- */
+  const [dlPhase, setDlPhase] = useState<DownloadPhase>(() => phaseFor(chapterId))
+  const [dlProgress, setDlProgress] = useState<{ done: number; total: number } | null>(null)
+  const [dlError, setDlError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setDlPhase(phaseFor(chapterId))
+    setDlProgress(null)
+    setDlError(null)
+    const unsub = subscribeDownloads(() => {
+      const phase = phaseFor(chapterId)
+      setDlPhase(phase)
+      if (phase !== 'downloading') setDlProgress(null)
+    })
+    return unsub
+  }, [chapterId, pages.length])
+
+  const toggleChapterDownload = useCallback(() => {
+    if (dlPhase === 'downloading') {
+      cancelDownload(chapterId)
+      return
+    }
+    if (dlPhase === 'downloaded') {
+      if (window.confirm('Remove this downloaded chapter?')) {
+        void removeDownload(chapterId).catch(() => undefined)
+      }
+      return
+    }
+    if (!isSupported()) {
+      setDlError('Offline downloads are not supported in this browser')
+      return
+    }
+    setDlError(null)
+    void persistStorage()
+    const label = chapter?.title ?? `Chapter ${chapter?.chapterNumber}`
+    void downloadChapter(
+      chapterId,
+      pages,
+      { titleId, title: title?.title ?? '', chapterLabel: label },
+      (done, total) => setDlProgress({ done, total }),
+    ).catch((err) => {
+      if (err instanceof DOMException && err.name === 'AbortError') return
+      setDlError(typeof err === 'string' ? err : (err?.message ?? 'Download failed'))
+    })
+  }, [dlPhase, chapterId, chapter, pages, title, titleId])
+
+  const dlSupported = isSupported()
 
   // Auto-hide the top/bottom bars while reading: any mousemove, scroll or tap
   // shows them again, then they fade out after a short idle period.
@@ -699,6 +760,44 @@ export function ReaderPage() {
             <List className="h-4 w-4" />
             <span className="hidden sm:inline">
               Ch. {chapter?.chapterNumber} / {sortedChapters.length || '–'}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={toggleChapterDownload}
+            disabled={!dlSupported || pages.length === 0}
+            className={cn(
+              'flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-sm font-bold transition-colors disabled:opacity-35',
+              dlPhase === 'downloaded'
+                ? 'text-emerald-400 hover:bg-emerald-500/10'
+                : dlPhase === 'downloading'
+                  ? 'text-flame-400 hover:bg-flame-500/10'
+                  : 'text-zinc-300 hover:bg-white/5 hover:text-white',
+            )}
+            aria-label={
+              dlPhase === 'downloaded'
+                ? 'Remove downloaded chapter'
+                : dlPhase === 'downloading'
+                  ? 'Cancel chapter download'
+                  : 'Download chapter for offline reading'
+            }
+            title={dlError ?? undefined}
+          >
+            {dlPhase === 'downloading' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : dlPhase === 'downloaded' ? (
+              <CheckCircle2 className="h-4 w-4" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
+            <span className="hidden sm:inline">
+              {dlPhase === 'downloading' && dlProgress
+                ? `${dlProgress.done}/${dlProgress.total}`
+                : dlPhase === 'downloaded'
+                  ? 'Saved'
+                  : dlSupported
+                    ? 'Download'
+                    : 'No offline'}
             </span>
           </button>
           <button
