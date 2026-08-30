@@ -134,7 +134,7 @@ export function NavSearchAutocomplete({ className, fullWidth = false, autoFocus 
           placeholder="Search manga & manhua…"
           className={cn(
             'rounded-full border border-black/10 bg-black/[0.03] py-2 pl-9 pr-4 text-sm text-zinc-900 outline-none transition-all duration-200 placeholder:text-zinc-400 focus:border-flame-500/50 focus:bg-white focus:shadow-lg focus:shadow-flame-500/10 dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus:bg-night-800',
-            fullWidth ? 'w-full focus:w-full' : 'w-52 focus:w-64',
+            fullWidth ? 'w-full focus:w-full' : 'w-72 focus:w-80 lg:w-72 lg:focus:w-80 xl:w-80 xl:focus:w-[22rem]',
           )}
         />
       </div>
